@@ -7,7 +7,7 @@ USER <- reactiveValues(Logged = Logged)
 output$uiLogin <- renderUI({
   if (USER$Logged == FALSE) {
     wellPanel(
-      textInput("userName", "Siret :", "78988079600014"),
+      textInput("userName", "Num\u00E9ro de Siret :", "44031147000023"),
       br(),
       actionButton("Login", "Connexion")
     )
@@ -27,10 +27,10 @@ output$pass <- renderText({
           if (affiliate == 'TRUE') {
             USER$Logged <- TRUE
           } else  {
-            "Siret number incorrect !"
+            "Num\u00E9ro de Siret incorrecte !"
           }
         } else {
-          "Siret number incorrect !"
+          "Num\u00E9ro de Siret incorrecte !"
         }
       }
     }

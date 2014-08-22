@@ -7,3 +7,9 @@
 # R data files from past sessions
 .Rdata
 .Rproj.user
+
+# Data
+data/commercants.txt
+data/connection.txt
+data/MAPcolombier.txt
+data/merchants.txt
