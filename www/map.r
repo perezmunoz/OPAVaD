@@ -6,6 +6,7 @@ library(shiny)
 library(leaflet)
 library(rCharts)
 library(maps)
+library(ggplot2)
 
 output$uiMap <- renderUI({
   leafletMap(
@@ -20,9 +21,10 @@ output$uiMap <- renderUI({
   )
 })
 
+# Panneau du fond de commerce du commerçant
 output$uiMerchant <- renderUI({
   absolutePanel(id = "dashbord", class = "modal", fixed = TRUE, draggable = FALSE,
-                top = 20, left = 330, right = "auto", bottom = "auto",
+                top = 20, left = "auto", right = 20, bottom = "auto",
                 width = "auto", height = "30%",
                 
                 as.character(tagList(
@@ -30,22 +32,26 @@ output$uiMerchant <- renderUI({
                   tags$strong(KEY$rs), tags$br(),
                   tags$strong("Siret : "), sprintf("%s", KEY$siret), tags$br(),
                   tags$strong("NAF : "), sprintf("%s", KEY$naf), tags$br(),
+                  #tags$strong("Groupe NAF : "), sprintf("%s", KEY$groupe_naf), tags$br(),
                   tags$strong("Total :"), sprintf("%s €", KEY$montant), tags$br(),
                   tags$strong("Transactions : "), sprintf("%s", KEY$transaction), tags$br(),
                   tags$br()
                 )),
                 
-                selectInput("compareMap", "Comparer par", c("Montants", "Transactions")),
-                dateRangeInput("range", label = "P\u00E9riode de visualisation", start = "2013-05-01", end = "2013-05-20", 
-                               format = "yyyy-mm-dd", startview = "month", weekstart = 0, language = "fr", separator = " \u00E0 ")
+                selectInput("compareMap", "Compare by", c("Montants", "Transactions"))
   )
 })
 
-# Link to unicode characters list
-output$desc <- renderUI({
-  as.character(tagList(
-    tags$h2('Statistiques de mon fond de commerce'),
-    tags$p('La carte ci-dessus est centr\u00E9e sur votre fond de commerce immatricul\u00E9 sous le num\u00E9ro de SIRET ', KEY$siret),
-    tags$p('situ\u00E9 \u00E0 la latitude, longitude : ', KEY$latitude, ',', KEY$longitude, '.')
-  ))
+output$mapColombier <- renderChart ({
+  colombier <- nPlot(y = MAPcolombier.data$Montant, x = MAPcolombier.data$date_transaction, group = "period" , data = MAPcolombier.data, 
+                     type = 'multiBarChart')
+  colombier$set(dom = "mapColombier")
+  return(colombier)
 })
+
+# output$irisPlot <- renderPlot({
+#   data(iris)
+#   str(iris)
+#   p <- ggplot(data = iris, aes(x = Petal.Length, y = Petal.Width, color = Species)) + geom_point()
+#   print(p)
+# })

@@ -8,34 +8,25 @@ library(rCharts)
 library(ggplot2)
 
 shinyUI(fluidPage(
-  
-  tags$head(tags$link(rel='stylesheet', type='text/css', href='styles.css'),
-            tags$script(type="text/javascript", src = "busy.js")
+  tags$head(tags$link(rel='stylesheet', type='text/css', href='styles.css')
   ),
-  # Log in GUI
+  
+  # UI de connexion
   div(class = "login",
       uiOutput("uiLogin"),
       textOutput("pass")
-      #img(id = "loading")
-      #src = "ajaxloader.gif", 
   ),
-  # Map
-  fluidRow(
-    uiOutput("uiMap"),
-    uiOutput("uiMerchant")
+  
+  # UI carte
+  div(class = "dashbord",
+      uiOutput("uiMap"),
+      uiOutput("uiMerchant")
   ),
-  # Merchant description
   fluidRow(
-    column(6,
-           offset = 3,
-           uiOutput("desc")
-    )
-  ),
-  hr(),
-  fluidRow(
-    column(6,
-           offset = 3,
-           plotOutput("ca")
+    column(8, offset = 2,
+           chartOutput('mapColombier', 'nvd3')
     )
   )
+  #   plotOutput("irisPlot")
+  #   chartOutput("irisPlot")
 ))

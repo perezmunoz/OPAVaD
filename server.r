@@ -10,7 +10,7 @@ library(ggplot2)
 
 Logged = FALSE;
 
-# From a future version of Shiny
+#From a future version of Shiny
 bindEvent <- function(eventExpr, callback, env=parent.frame(), quoted=FALSE) {
   eventFunc <- exprToFunction(eventExpr, env, quoted)
   
@@ -31,10 +31,14 @@ shinyServer(function(input, output, session) {
   observe({
     if (USER$Logged == TRUE) {
       
-      source('www/map.r', local = TRUE)
+#       output$mapColombier <- renderChart ({
+#         colombier <- nPlot(y = MAPcolombier.data$Montant, x = MAPcolombier.data$date_transaction, group = "period" , data = MAPcolombier.data, 
+#                            type = 'multiBarChart')
+#         colombier$set(dom = "mapColombier")
+#         return(colombier)
+#       })
       
-      # Merchant transactions loaded
-      key.df.transactions <<- read.delim(getName(), sep = "\t", header = FALSE, dec = ".", col.names = varsTransactions)
+      source('www/map.r', local = TRUE)
       
       compareCol <- reactive({
         if (input$compareMap == "Montants") {
@@ -46,7 +50,7 @@ shinyServer(function(input, output, session) {
       
       makeReactiveBinding('selectedCom')
       
-      # Merchants in bounds
+      #Commerçants présents dans la champ de vision
       comInBounds <- reactive({
         if (is.null(input$map_bounds))
           return(group_naf[FALSE,])
@@ -90,7 +94,7 @@ shinyServer(function(input, output, session) {
             color = getColor(listeCommercants))
         )
       })
-      # Color affiliate and non affiliates merchants
+      # Fonction différenciant les commerçants affiliés et non affiliés
       getColor <- function(input) {
         
         ids <- c(row.names(input))
@@ -128,73 +132,6 @@ shinyServer(function(input, output, session) {
           map$showPopup(event$lat, event$lng, content, event$id)
         })
       })
-      # Plot sales merchant
-      output$ca <- renderPlot ({
-        
-        # Structuring merchant's data
-        key.df.transactions$date_transaction <- as.Date(key.df.transactions$date_transaction, format="%d/%m/%Y")
-        print(str(key.df.transactions))
-        key.df.transactions$numero_siret <- as.character(key.df.transactions$numero_siret)
-        key.df.transactions$heure_transaction <- strptime(key.df.transactions$heure_transaction, "%H:%M:%S")
-        
-        period = (input$range[2] - input$range[1]) + 1
-        print(period)
-        #         selected <- df[df$numero_siret == '44031091000029', ]
-        print(input$range[1])
-        print(input$range[2])
-        selected <- key.df.transactions[key.df.transactions$date_transaction >= input$range[1]
-                                        & key.df.transactions$date_transaction <= input$range[2], ]
-        selected <- selected[order(selected$date_transaction), ]
-        
-        matin.data <- selected[selected$heure_transaction >= strptime("08:00:00", "%H:%M:%S")
-                               & selected$heure_transaction <= strptime("12:00:00", "%H:%M:%S"), ]
-        matin.data$heure_transaction <- NULL
-        matin.summary <- matin.data %.%
-          group_by(date_transaction) %.%
-          summarise(Montant = sum(montant_transaction),
-                    Transactions = n())
-        matin <- rep(matin, times = period)
-        matin.summary$period <- matin
-        
-        midi.data <- selected[selected$heure_transaction > strptime("12:00:00", "%H:%M:%S")
-                              & selected$heure_transaction <= strptime("14:00:00", "%H:%M:%S"), ]
-        midi.data$heure_transaction <- NULL
-        midi.summary <- midi.data %.%
-          group_by(date_transaction) %.%
-          summarise(Montant = sum(montant_transaction),
-                    Transactions = n())
-        midi <- rep(midi, times = period)
-        midi.summary$period <- midi
-        
-        pm.data <- selected[selected$heure_transaction > strptime("14:00:00", "%H:%M:%S")
-                            & selected$heure_transaction <= strptime("17:00:00", "%H:%M:%S"), ]
-        pm.data$heure_transaction <- NULL
-        pm.summary <- pm.data %.%
-          group_by(date_transaction) %.%
-          summarise(Montant = sum(montant_transaction),
-                    Transactions = n())
-        pm <- rep(pm, times = period)
-        pm.summary$period <- pm
-        
-        soir.data <- selected[(selected$heure_transaction > strptime("17:00:00", "%H:%M:%S")
-                               & selected$heure_transaction < strptime("23:59:59", "%H:%M:%S"))
-                              | (selected$heure_transaction >= strptime("00:00:00", "%H:%M:%S")
-                                 & selected$heure_transaction < strptime("08:00:00", "%H:%M:%S")), ]
-        soir.data$heure_transaction <- NULL
-        soir.summary <- soir.data %.%
-          group_by(date_transaction) %.%
-          summarise(Montant = sum(montant_transaction),
-                    Transactions = n())
-        soir <- rep(soir, times = period)
-        soir.summary$period <- soir
-        
-        sel <- rbind(matin.summary, midi.summary)
-        sel <- rbind(sel, pm.summary)
-        fin <- rbind(sel, soir.summary)
-        
-        ggplot(data = fin, aes(x = date_transaction, y = Montant)) + geom_bar(stat = 'identity', aes(fill = period)) + theme_bw() + 
-          theme(panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(), rect=element_blank())
-      })     
     }
   })
 })
