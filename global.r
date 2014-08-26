@@ -38,6 +38,7 @@ matin <- c("matin")
 midi <- c("midi")
 pm <- c("pm")
 soir <- c("soir")
+
 # Récupération du nom de la table du commerçant connecté
 getName <- function() {
   df.name <- paste("data/TransactionsByMerchant/", KEY$siret, ".txt", sep = "")

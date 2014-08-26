@@ -17,7 +17,7 @@ shinyUI(fluidPage(
       textOutput("pass")
   ),
   # Mon fond de commerce
-  ## Carte et panneau 'Mon fond de commerce'
+  # Carte et panneau 'Mon fond de commerce'
   fluidRow(
     uiOutput("uiMap"),
     uiOutput("uiMerchant")

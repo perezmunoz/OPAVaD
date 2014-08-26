@@ -10,7 +10,7 @@ output$uiLogin <- renderUI({
   if (USER$Logged == FALSE) {
     print("[output$uiLogin] Connexion non établie")
     wellPanel(
-      textInput("userName", "Num\u00E9ro de Siret :", "44031147000023"),
+      textInput("userName", "Num\u00E9ro de Siret :", "44031024100029"),
       br(),
       actionButton("Login", "Connexion")
     )
