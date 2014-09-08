@@ -3,6 +3,7 @@
 ####################
 
 library(dplyr)
+#devtools::install_github("testthat", "hadley")
 
 # Attributs de la data frame principale
 varsMerchant <- c('siret', 'rs', 'date', 'montant', 'transaction', 'naf', 'groupe_naf', 'ville', 

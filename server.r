@@ -34,7 +34,7 @@ shinyServer(function(input, output, session) {
       print("map est créée")
       
       # Méthode récupérant les données pour la carte
-      getData <<- reactive({
+      getData <<- function() {
         
         rangeDate <- getRangeDate()
         
@@ -46,18 +46,29 @@ shinyServer(function(input, output, session) {
         res <- summarise(res, montant = sum(montant), transaction = sum(transaction))
         print("[getData] Table commerçants construite")
         return(res)
-      })
+      }
       
       # Méthode récupérant les dates de début et fin de visualisation des données
+#       getRangeDate <- function() {
+#         print("[getRangeDate] Entrée fonction")
+#         out <<- c(as.Date("2013-05-01"), as.Date("2013-05-20"))
+#         if(!is.null(input$range[1]) & !is.null(input$range[2])) {
+#           out[1] <<- input$range[1]
+#           out[2] <<- input$range[2]
+#           return(out)
+#         }
+#         return(out)
+#       }
       getRangeDate <- function() {
-        print("[getRangeDate] Entrée fonction")
-        out <<- c(as.Date("2013-05-01"), as.Date("2013-05-20"))
-        if(!is.null(input$range[1]) & !is.null(input$range[2])) {
-          out[1] <- input$range[1]
-          out[2] <- input$range[2]
+        if(is.null(input$range[1]) & is.null(input$range[2])){
+          out <<- c(as.Date("2013-05-01"), as.Date("2013-05-20"))
+          return(out)
+        } else {
+          out <<- c(as.Date("2013-05-01"), as.Date("2013-05-20"))
+          out[1] <<- input$range[1]
+          out[2] <<- input$range[2]
           return(out)
         }
-        return(out)
       }
       
       # Méthode renvoyant le nom du type de comparaison souhaité : par montant ou par transaction

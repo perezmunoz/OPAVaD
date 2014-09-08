@@ -1,5 +1,14 @@
 @import url(//fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600);
 
+.ajax-loader {
+  display: none;
+  
+}
+
+html.shiny-busy .ajax-loader {
+  display: block;
+}
+
 .container-fluid {
   padding-top: 10%;
 }
@@ -22,7 +31,7 @@ body {
 
 #map {
   position: absolute;
-  top: 0;
+  top: 41px;
   left: 0;
   right: 0;
   bottom: 400;
@@ -32,12 +41,28 @@ body {
   margin-left: 15px;
 }
 
-#dashbord {
+#dashbord, #dashbord-bis {
   background-color: white;
   padding: 0 20px 20px 20px;
   cursor: move;
   opacity: 0.8;
   zoom: 0.9;
+}
+
+#comparerPeriode {
+  /*float: right;*/
+}
+
+div.navbar {
+  display: none;
+}
+
+#graphique-tab {
+  display: none;
+}
+
+#comparerCritere {
+  /*float: left;
 }
 
 #desc {
@@ -47,4 +72,9 @@ body {
 #desc span {
   color: #944;
   font-weight: 400;
+}
+
+.navbar {
+   height: 20px;
+   display: none;
 }
