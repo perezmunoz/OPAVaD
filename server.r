@@ -49,27 +49,18 @@ shinyServer(function(input, output, session) {
       }
       
       # Méthode récupérant les dates de début et fin de visualisation des données
-#       getRangeDate <- function() {
-#         print("[getRangeDate] Entrée fonction")
-#         out <<- c(as.Date("2013-05-01"), as.Date("2013-05-20"))
-#         if(!is.null(input$range[1]) & !is.null(input$range[2])) {
-#           out[1] <<- input$range[1]
-#           out[2] <<- input$range[2]
-#           return(out)
-#         }
-#         return(out)
-#       }
-      getRangeDate <- function() {
+      getRangeDate <<- reactive({
         if(is.null(input$range[1]) & is.null(input$range[2])){
-          out <<- c(as.Date("2013-05-01"), as.Date("2013-05-20"))
+          out <<- c(as.Date("2013-05-01"), as.Date("2013-05-08"))
           return(out)
         } else {
-          out <<- c(as.Date("2013-05-01"), as.Date("2013-05-20"))
-          out[1] <<- input$range[1]
-          out[2] <<- input$range[2]
+          #           out <<- c(as.Date("2013-05-01"), as.Date("2013-05-20"))
+          #           out[1] <<- input$range[1]
+          #           out[2] <<- input$range[2]
+          out <<- c(input$range[1], input$range[2])
           return(out)
         }
-      }
+      })
       
       # Méthode renvoyant le nom du type de comparaison souhaité : par montant ou par transaction
       compareCol <<- reactive({
@@ -192,7 +183,8 @@ shinyServer(function(input, output, session) {
         })
       })
       # Graphique n°1
-      output$ca <- renderPlot ({
+      output$graphiqueCA <- renderPlot ({
+        #print(commercants.table)
         
         print("[output$ca] Construction de l'histogramme")
         
@@ -210,7 +202,7 @@ shinyServer(function(input, output, session) {
         print(paste("[output$ca] Récupération de la période :", period))
         print(input$range[1])
         print(input$range[2])
-        rangeDate <- getRangeDate()
+        rangeDate <<- getRangeDate()
         print(paste("Les input$range sont-ils nuls ?", is.null(input$range)))
         # Filtrage des transactions client selon les dates de visualisation
         selected <- key.df.transactions[key.df.transactions$date_transaction >= rangeDate[1]
@@ -267,14 +259,145 @@ shinyServer(function(input, output, session) {
         sel <- rbind(matin.summary, midi.summary)
         sel <- rbind(sel, pm.summary)
         fin <<- rbind(sel, soir.summary)
+        fin$period <<- factor(fin$period, c("soir", "pm", "midi", "matin"))
         print("[output$ca] Table fin construite")
         
         print(paste("[output$ca] Tracé selon :", compareCol()))
         
         print("[output$ca] ggplot en construction")
-        return(ggplot(data = fin, aes_string(x = "date_transaction", y = compareCol())) + geom_bar(stat = 'identity', aes(fill = period)) + theme_bw() + 
-                 theme(panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(), rect=element_blank()))
-      })     
+        #         cols <- c(rgb(153, 192, 219, maxColorValue = 255), rgb(251, 153, 142, maxColorValue = 255), rgb(253, 195, 129, maxColorValue = 255), rgb(194, 228, 135, maxColorValue = 255))
+        #         cols <- c(matin="Blue", midi="Green", pm="Black", soir="Red")  
+        cols <- c(matin="#99C0DB", midi="#FB998E", pm="#FDC381", soir="#C2E487")
+        print(paste("Niveaux de fin :", str(fin)))
+        return(ggplot(data = fin, aes_string(x = "date_transaction", y = compareCol())) +
+                 geom_bar(stat = 'identity', aes(fill = period)) +
+                 theme_bw() +
+                 labs(x = "Date de la transaction (mois/jour)", y = ifelse(compareCol()=="montant", "Montant des transactions (en €)", "Nombre de transactions")) +
+                 scale_fill_manual(values = cols) +
+                 theme(axis.title.x = element_text(vjust = -0.5),
+                       axis.title.y = element_text(vjust = 2),
+                       #                        legend.position = "none",
+                       panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(), rect=element_blank()))
+      })
+      output$caTitre <- renderUI({
+        tagList(tags$h4("Distribution du chiffre d'affaire selon la période de la journée"))
+      })
+      output$moncommerceExplication <- renderUI({
+        br()
+        tagList(
+          tags$h5("La journée est découpée en quatre périodes clés pour mettre en valeur les habitudes de consommation des clients. Ces périodes sont définies comme suit :"),
+          tags$ul(
+            tags$li(HTML(paste(tags$b("le matin"), "définit entre 8h00 et 12h00"))),
+            tags$li(HTML(paste(tags$b("le midi"), "définit entre 12h00 et 14h00"))),
+            tags$li(HTML(paste(tags$b("l'après-midi"), "(alias pm) définit entre 14h00 et 17h00"))),
+            tags$li(HTML(paste(tags$b("le soir"), "définit entre 17h00 et 8h00 du matin")))
+          )
+        )
+      })
+      output$clienteleTitre <- renderUI({
+        tagList(tags$h4("Répartition de la clientèle"))
+      })
+      output$graphiqueClientele <- renderPlot({
+        #         getRangeDate()
+        ggplot(aes(x = factor(1), fill = factor(type)), data = fidelisation()) +
+          geom_bar(width = 1, colour = "white") +
+          coord_polar(theta = "y") +
+          #labs(title = 'Fidélité clientèle') +  
+          theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
+                panel.background=element_blank(), panel.border=element_blank(), panel.grid=element_blank(),
+                legend.title=element_blank())
+      })
+      fidelite.resume <<- reactive({
+        getRangeDate()
+        df <- fidelite %>%
+          group_by(type) %>%
+          summarise(n = n())
+        return(df)
+      })
+      output$clienteleDefinition <- renderUI({
+        tagList(
+          tags$ul(tags$h5("Quelques définitions pour comprendre le graphique ci-contre"),
+                  tags$li(tags$b("Prospect :"), tags$h6("Client ne consommant pas dans votre commerce mais chez des commerçants de même NAF.")), 
+                  tags$li(tags$b("Infidèle :"), tags$h6("Client consommant chez vous et chez d'autres commerçants de même NAF.")), 
+                  tags$li(tags$b("Fidèle :"), tags$h6("Client consommant exclusivement dans votre commerce")))
+          #           ),
+          #           tagList(tags$h2(fidelite.data[fidelite.data$type=='Prospects', ]$n), tags$h5("Prospects")),
+          #           tags$h2(ifelse(nrow(fidelite.data[fidelite.data$type=='Infidèles',])>0,fidelite.data[fidelite.data$type=='Infidèles', ]$n,0)), tags$h5("Clients infidèles"),
+          #           tags$h2(ifelse(nrow(fidelite.data[fidelite.data$type=='Fidèles',])>0,fidelite.data[fidelite.data$type=='Fidèles', ]$n,0)), tags$h5("Clients fidèles")
+        )
+      })
+      
+      output$repartitionClientele <- renderUI({
+        #         getRangeDate()
+        fidelite.data <- fidelite.resume()
+        tagList(div(tags$h2(fidelite.data[fidelite.data$type=='Prospects', ]$n), tags$h5("Prospects")),
+                div(tags$h2(ifelse(nrow(fidelite.data[fidelite.data$type=='Infidèles',])>0,fidelite.data[fidelite.data$type=='Infidèles', ]$n,0)), tags$h5("Clients infidèles")),
+                div(tags$h2(ifelse(nrow(fidelite.data[fidelite.data$type=='Fidèles',])>0,fidelite.data[fidelite.data$type=='Fidèles', ]$n,0)), tags$h5("Clients fidèles"))
+        )
+      })
+      #       fidelite.data <<- fidelite.resume()
+      
+      #       output$repartitionClienteleProsp <- renderUI({
+      #         tagList(tags$h2(fidelite.data[fidelite.data$type=='Prospects', ]$n), tags$h5("Prospects"))
+      #       })
+      #       output$repartitionClienteleInf <- renderUI({
+      #         tagList(tags$h2(ifelse(nrow(fidelite.data[fidelite.data$type=='Infidèles',])>0,fidelite.data[fidelite.data$type=='Infidèles', ]$n,0)), tags$h5("Clients infidèles"))
+      #       })
+      #       output$repartitionClienteleFid <- renderUI({
+      #         tagList(tags$h2(ifelse(nrow(fidelite.data[fidelite.data$type=='Fidèles',])>0,fidelite.data[fidelite.data$type=='Fidèles', ]$n,0)), tags$h5("Clients fidèles"))
+      #       })
+      output$prospects <- renderDataTable({
+        barycentre(recapitulatif(commercants.table))
+        action(input$distance)
+      })
+      fidelisation <- reactive({
+        rangeDate <- getRangeDate()
+        print(rangeDate)
+        df <- transactionsNAF[transactionsNAF$date >= rangeDate[1]
+                              & transactionsNAF$date <= rangeDate[2], ]
+        df <- df[1:300, ]
+        if(nrow(df) == 0) {
+          return()
+        }
+        # on regroupe les transactions par identifiant client, raison sociale du commerçant ainsi que sa géolocalisation
+        resume <<- df %>%
+          group_by("client", "siret") %>%
+          summarise(n = n())
+        clients <- unique(resume[ , 1])
+        #print(clients)
+        table <- matrix(ncol = 2)
+        fidelite <<- as.data.frame(table)
+        #   value <<- reactiveValues(fidelite = as.data.frame(table))
+        names(fidelite) <<- c("client", "type")
+        fidelite$client <<- as.character(fidelite$client)
+        fidelite$type <<- as.character(fidelite$type)
+        # On réalise autant d'itérations qu'il y a de clients
+        print("#####################################")
+        print(length(clients))
+        print("#####################################")
+        for(i in 1:length(clients)) {
+          print(paste("i =", i, "client n°", clients[i]))
+          # On récupère les consommations d'un seul client
+          determination <- subset(resume, clients[i] == resume$client)
+          # Si le client n'a pas fait d'achats chez le commerçant connecté ...
+          if(nrow(determination[determination$siret == KEY$siret, ]) == 0) {
+            # Alors c'est un prospect (s'il apparaît dans resume c'est parcequ'il a au moins réalisé un achat dans ce type de NAF)
+            fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Prospects"))
+            # S'il a consommé chez le commerçant connecté et ailleurs, alors il est infidèle
+          } else if(nrow(determination[determination$siret == KEY$siret, ]) >= 1
+                    & nrow(determination[determination$siret != KEY$siret, ]) >= 1) {
+            fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Infidèles"))
+            # Sinon il est fidèle
+          } else if(nrow(determination[determination$siret == KEY$siret, ]) >= 1
+                    & nrow(determination[determination$siret != KEY$siret, ]) == 0)
+          {fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Fidèles"))}
+        }
+        fidelite <<- fidelite[-1, ]
+        #         fidelite.data <<- fidelite.resume()
+        print(fidelite)
+        return(fidelite)
+      })
+      
     }
   })
 })

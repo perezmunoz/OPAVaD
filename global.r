@@ -34,6 +34,18 @@ commercants <- commercants[!is.na(commercants$latitude)
                            & !is.na(commercants$rs)
                            & !is.na(commercants$groupe_naf), ]
 
+## Test avec la table de l'appli test ##
+vars <- c('montant', 'date', 'siret', 'rs', 'naf', 'groupe_naf', 'ville', 
+          'Lat', 'Long', 'client', 'age', 'sexe', 'csp', 'optin_tel', 'optin_mail', 'mail',
+          'statut', 'anciennete', 'caisse', 'age_carte', 'avoir', 'ville_client')
+a = Sys.time()
+transactionsNAF <- read.delim("data/553B.txt", sep = "\t", header = FALSE, dec = ".", col.names = vars)
+transactionsNAF$siret <- as.character(transactionsNAF$siret)
+transactionsNAF$date <- as.Date(transactionsNAF$date, format="%d/%m/%Y")
+b = Sys.time()
+print(b-a)
+commercants.table <- transactionsNAF[1:1000, ]
+
 # Vecteurs des sous data frames de transactions 
 matin <- c("matin")
 midi <- c("midi")
@@ -45,3 +57,121 @@ getName <- function() {
   df.name <- paste("data/TransactionsByMerchant/", KEY$siret, ".txt", sep = "")
   return(df.name)
 }
+
+## Calcul des barycentres des clients ##
+
+# Rayon de la Terre (km)
+rayon = 6378.137
+
+# Calcul la distance d'un commerçant au barycentre d'un client et renvoie TRUE ou FALSE s'il est dans son champ d'action
+action <- function(dist) {
+  #latC = 48.095356 * pi/180
+  #longC = 1.637367 * pi/180
+  latC = KEY$latitude * pi/180
+  longC = -(KEY$longitude * pi/180)
+  print(paste("latC", latC, "et longC", longC))
+  #bar <- barycentre(recapitulatif(commercants))
+  bar <<- df.barycentres
+  for(i in 1:nrow(bar)) {
+    print(paste("i =", i))
+    separation <- acos(sin(latC)*sin(bar$Lat[i]*pi/180)+cos(latC)*cos(bar$Lat[i]*pi/180)*cos(longC+bar$Long[i]*pi/180)) * rayon
+    if(separation <= dist) {
+      bar$present[i] <<- as.logical("TRUE")
+    } else {bar$present[i] <<- as.logical("FALSE")}
+  }
+  return(bar)
+}
+
+# Résume les données clients
+recapitulatif <- function(df) {
+  print("recap")
+  if(nrow(df) == 0) {
+    return()
+  }
+  # on regroupe les transactions par identifiant client, raison sociale du commerçant ainsi que sa géolocalisation
+  resume <- df %>%
+    group_by("client", "rs", "Lat", "Long") %>%
+    summarise(n = n())
+  return(resume)
+}
+
+# Calcul le barycentre pour chacun des clients
+barycentre <- function(e) {
+  #   # e est la liste des transactions pour UN client
+  print("bary")
+  clients <- unique(e[ , 1])
+  print(clients)
+  table <- matrix(0 ,nrow = length(clients), ncol = 3)
+  #print(table)
+  df.barycentres <<- as.data.frame(table)
+  names(df.barycentres) <<- c("client", "Lat", "Long")
+  df.barycentres$client <<- as.character(df.barycentres$client)
+  # On réalise autant d'itérations qu'il y a de clients
+  for(k in 1:length(clients)) {
+    print(paste("k =", k))
+    df.barycentres[k, 1] <<- as.character(clients[k])
+    grav <- subset(e, client == clients[k])
+    # Initialisation des variables
+    Gx <- 0
+    Gy <- 0
+    poids <- sum(grav$n)
+    # Pour chaque client, on calcule les coordonnées de son point de gravité
+    for(i in 1:nrow(grav)) {
+      Gx <- Gx + (grav[i, 3] * grav[i, 5])
+      Gy <- Gy + (grav[i, 4] * grav[i, 5])
+    }
+    # Gravité client stocké dans la data frame des barycentres
+    df.barycentres[k, 2] <<- Gx / poids
+    df.barycentres[k, 3] <<- Gy / poids
+  }
+  #print(df.barycentres)
+  return(df.barycentres)
+}
+
+# fidelisation <- reactive({
+#   rangeDate <- getRangeDate()
+#   print(rangeDate)
+#   df <- transactionsNAF[transactionsNAF$date >= rangeDate[1]
+#                         & transactionsNAF$date <= rangeDate[2], ]
+#   df <- df[1:150, ]
+#   if(nrow(df) == 0) {
+#     return()
+#   }
+#   # on regroupe les transactions par identifiant client, raison sociale du commerçant ainsi que sa géolocalisation
+#   resume <<- df %>%
+#     group_by("client", "siret") %>%
+#     summarise(n = n())
+#   clients <- unique(resume[ , 1])
+#   print(clients)
+#   table <- matrix(ncol = 2)
+#   fidelite <<- as.data.frame(table)
+#   #   value <<- reactiveValues(fidelite = as.data.frame(table))
+#   names(fidelite) <<- c("client", "type")
+#   fidelite$client <<- as.character(fidelite$client)
+#   fidelite$type <<- as.character(fidelite$type)
+#   # On réalise autant d'itérations qu'il y a de clients
+#   print("#####################################")
+#   print(length(clients))
+#   print("#####################################")
+#   for(i in 1:length(clients)) {
+#     print(paste("i =", i, "client n°", clients[i]))
+#     # On récupère les consommations d'un seul client
+#     determination <- subset(resume, clients[i] == resume$client)
+#     # Si le client n'a pas fait d'achats chez le commerçant connecté ...
+#     if(nrow(determination[determination$siret == KEY$siret, ]) == 0) {
+#       # Alors c'est un prospect (s'il apparaît dans resume c'est parcequ'il a au moins réalisé un achat dans ce type de NAF)
+#       fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Prospects"))
+#       # S'il a consommé chez le commerçant connecté et ailleurs, alors il est infidèle
+#     } else if(nrow(determination[determination$siret == KEY$siret, ]) >= 1
+#               & nrow(determination[determination$siret != KEY$siret, ]) >= 1) {
+#       fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Infidèles"))
+#       # Sinon il est fidèle
+#     } else if(nrow(determination[determination$siret == KEY$siret, ]) >= 1
+#               & nrow(determination[determination$siret != KEY$siret, ]) == 0)
+#     {fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Fidèles"))}
+#   }
+#   fidelite <<- fidelite[-1, ]
+#   print(fidelite)
+#   return(fidelite)
+# })
+
