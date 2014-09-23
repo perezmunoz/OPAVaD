@@ -4,7 +4,6 @@
 
 library(shiny)
 library(leaflet)
-library(rCharts)
 library(maps)
 
 # Carte centrée sur le commerçant connecté à la connexion
@@ -28,7 +27,7 @@ output$panneauCarte <- renderUI({
   data <- getData()
   com <<- data[data$siret == KEY$siret, ]
   print(com)
-  absolutePanel(id = "dashbord", class = "modal", fixed = TRUE, draggable = FALSE,
+  absolutePanel(id = "dashbord", class = "modal", fixed = FALSE, draggable = FALSE,
                 top = 57, left = 330, right = "auto", bottom = "auto",
                 width = "auto", height = "auto",
                 

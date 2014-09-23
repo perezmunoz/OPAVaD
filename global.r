@@ -9,15 +9,21 @@ library(dplyr)
 varsMerchant <- c('siret', 'rs', 'date', 'montant', 'transaction', 'naf', 'groupe_naf', 'ville', 
                   'latitude', 'longitude', 'affilie_ca')
 
-# Attributs de la data frame des transactions
-varsTransactions <- c('montant_transaction', 'date_transaction', 'jour_transaction', 'mois_transaction', 'annee_transaction',
-                      'heure_transaction', 'numero_siret', 'raison_sociale', 'naf', 'groupe_naf', 'ville_commercant', 'lat_commercant',
-                      'long_commercant', 'affilie_ca', 'numer_carte', 'age_carte', 'debit', 'libelle_produit', 'reseau','paiement',
-                      'retrait', 'niveau', 'id_compte', 'type_compte', 'credit_mensuel_total', 'debit_mensuel_total', 'solde', 'client',
-                      'age', 'sexe', 'csp', 'opt_in_numero_portable', 'opt_in_mail', 'e_mail', 'nbr_enfants', 'situation_familiale',
-                      'anciennete_relation', 'segment', 'score_de_risque', 'total_avoir', 'appetance_internet', 'appetance_mobile',
-                      'ville_client', 'type_localite', 'lat_client', 'long_client', 'chiffre_affaire', 'montant_pret',
-                      'montant_echeance_theorique', 'montant_restant_du_reel', 'date_1ere_echeance', 'date_derniere_echeance')
+# OBSOLETE
+# # Attributs de la data frame des transactions
+# varsTransactions <- c('montant_transaction', 'date_transaction', 'jour_transaction', 'mois_transaction', 'annee_transaction',
+#                       'heure_transaction', 'numero_siret', 'raison_sociale', 'naf', 'groupe_naf', 'ville_commercant', 'lat_commercant',
+#                       'long_commercant', 'affilie_ca', 'numer_carte', 'age_carte', 'debit', 'libelle_produit', 'reseau','paiement',
+#                       'retrait', 'niveau', 'id_compte', 'type_compte', 'credit_mensuel_total', 'debit_mensuel_total', 'solde', 'client',
+#                       'age', 'sexe', 'csp', 'opt_in_numero_portable', 'opt_in_mail', 'e_mail', 'nbr_enfants', 'situation_familiale',
+#                       'anciennete_relation', 'segment', 'score_de_risque', 'total_avoir', 'appetance_internet', 'appetance_mobile',
+#                       'ville_client', 'type_localite', 'lat_client', 'long_client', 'chiffre_affaire', 'montant_pret',
+#                       'montant_echeance_theorique', 'montant_restant_du_reel', 'date_1ere_echeance', 'date_derniere_echeance')
+
+# Attributs des data tables
+var <- c('montant','date','heure','siret','rs','naf','villecom','lon','lat','affilie','client','age','sexe','csp','optel','opmail','mail',
+         'enfant','situation','anciennete','segment','score','avoir','appinternet','appmobile','villeclient','uu','carte','libelle','reseau',
+         'paiement','retrait', 'niveau','typecompte','credit','debit','mensualite','restant','datepremire','datederniere','vide','ca')
 
 # Variables utiles à l'initialisation de la carte
 north <- 0.00342
@@ -34,27 +40,76 @@ commercants <- commercants[!is.na(commercants$latitude)
                            & !is.na(commercants$rs)
                            & !is.na(commercants$groupe_naf), ]
 
+#####################################################################################################################
+
+# var2 <- c('montant','date','heure','siret','rs','naf','villecom','lon','lat','affilie','client','age','sexe','csp','optel','opmail','mail',
+# 'enfant','situation','anciennete','segment','score','avoir','appinternet','appmobile','villeclient','uu','carte','libelle','reseau',
+# 'paiement','retrait', 'niveau','typecompte','credit','debit','mensualite','restant','datepremire','datederniere','vide','ca')
+# 
+# ## Colonnes que l'on garde pour construire la table
+# # col <- c(1,2,4,5,6,7,8,9,10)
+# col2 <- c('montant','date','siret','rs','naf','villecom','lon','lat','affilie')
+# 
+# # Chargement de la table sous forme de data table
+# # df <- fread('C:/Users/CAvatar/Desktop/NAF/521D.txt', sep = "\t", select = col)
+# # setnames(x = df, old=names(df), new = var)
+# 
+# df <- fread('C:/Users/CAvatar/Desktop/NAF/521D.txt', sep = "\t")
+# setnames(x = df, old=names(df), new = var2)
+# 
+# # Struction des données
+# # Temps d'exécution
+# # utilisateur     système      écoulé 
+# # 7.78        0.59        8.50 
+# df$date <- with(df, as.IDate(x = date, format = "%d/%m/%Y"))
+# 
+# # Subset de la table pour retenir ce qui nous intéresse
+# # Temps d'exécution
+# # utilisateur     système      écoulé 
+# # 0.38        0.03        0.40 
+# tr <- subset(df, select=col2)
+# 
+# # Regroupement de la table
+# # Temps d'exécution
+# # utilisateur     système      écoulé 
+# # 1.67        0.05        1.72 
+# tr <- tr %>%
+#   group_by(date,siret,rs,naf,villecom,lon,lat,affilie) %>%
+#   summarise(montant=sum(montant),
+#             transaction=n())
+
+#####################################################################################################################
+
 ## Test avec la table de l'appli test ##
 vars <- c('montant', 'date', 'siret', 'rs', 'naf', 'groupe_naf', 'ville', 
           'Lat', 'Long', 'client', 'age', 'sexe', 'csp', 'optin_tel', 'optin_mail', 'mail',
           'statut', 'anciennete', 'caisse', 'age_carte', 'avoir', 'ville_client')
-a = Sys.time()
-transactionsNAF <- read.delim("data/553B.txt", sep = "\t", header = FALSE, dec = ".", col.names = vars)
-transactionsNAF$siret <- as.character(transactionsNAF$siret)
-transactionsNAF$date <- as.Date(transactionsNAF$date, format="%d/%m/%Y")
-b = Sys.time()
-print(b-a)
-commercants.table <- transactionsNAF[1:1000, ]
 
+# a = Sys.time()
+# transactionsNAF <- read.delim("data/553B.txt", sep = "\t", header = FALSE, dec = ".", col.names = vars)
+# transactionsNAF$siret <- as.character(transactionsNAF$siret)
+# transactionsNAF$date <- as.Date(transactionsNAF$date, format="%d/%m/%Y")
+# b = Sys.time()
+# print(b-a)
+# # Calcul du barycentre avec commercants.table
+# commercants.table <- transactionsNAF[1:1000, ]
+
+# INUTILE CAR TOUT EST REMPLACE AVEC L'OPTIMISATION
 # Vecteurs des sous data frames de transactions 
 matin <- c("matin")
 midi <- c("midi")
 pm <- c("pm")
 soir <- c("soir")
 
-# Récupération du nom de la table du commerçant connecté
-getName <- function() {
-  df.name <- paste("data/TransactionsByMerchant/", KEY$siret, ".txt", sep = "")
+# Récupération du nom de la table SIRET du commerçant connecté
+getNameSIRET <- function() {
+  df.name <- paste('C:/Users/CAvatar/Desktop/SIRET/','NAF',KEY$naf,'/',KEY$siret,'.txt',sep = "")
+  return(df.name)
+}
+
+# Récupération du nom de la table NAF du commerçant connecté
+getNameNAF <- function() {
+  df.name <- paste('C:/Users/CAvatar/Desktop/NAF/',KEY$naf,'.txt',sep = "")
   return(df.name)
 }
 

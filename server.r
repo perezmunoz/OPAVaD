@@ -2,13 +2,15 @@
 ###### server ######
 ####################
 
-library(shiny)
-library(leaflet)
-library(rCharts)
-library(maps)
-library(ggplot2)
+require(shiny)
+require(leaflet)
+require(ggplot2)
+require(data.table)
+require(bit64)
+require(dplyr)
 
 Logged = FALSE;
+# valuesR <- reactiveValues(fidelite = fidelite)
 
 shinyServer(function(input, output, session) {
   
@@ -25,15 +27,25 @@ shinyServer(function(input, output, session) {
       source('www/map.r', local = TRUE)
       print("map.r est 'sourcé'")
       
-      # Chargement des transactions du commerçant connecté
-      key.df.transactions <<- read.delim(getName(), sep = "\t", header = FALSE, dec = ".", col.names = varsTransactions)
-      print("Table du commerçants connecté récupérées et non traitées")
+      #       # Chargement des transactions du commerçant connecté
+      #       key.df.transactions <<- read.delim(getName(), sep = "\t", header = FALSE, dec = ".", col.names = varsTransactions)
+      
+      # Chargement de la data table des transactions du commerçant connecté
+      df.s <<- fread(getNameSIRET(), sep = "\t")
+      setnames(x = df.s, old=names(df.s), new = var)
+      print("Table SIRET du commerçant connecté récupérée et non traitée")
+      
+      # Chargement de la data table des transactions du NAF du commerçant connecté  
+      df.n <<- fread(getNameNAF(), sep = "\t")
+      setnames(x = df.n, old=names(df.n), new = var)
+      print("Table NAF du commerçant connecté récupérée et non traitée")
       
       # Créaction d'un 'proxy' de la carte à l'aide duquel les cercles seront construits
       map <- createLeafletMap(session, 'map')
       print("map est créée")
       
-      # Méthode récupérant les données pour la carte
+      # Méthode récupérant les données pour la carte lorsque la période de visualisation est modifiée
+      # Elles résume les données au préalables résumées par commerçant et par jour en une seule ligne
       getData <<- function() {
         
         rangeDate <- getRangeDate()
@@ -51,7 +63,7 @@ shinyServer(function(input, output, session) {
       # Méthode récupérant les dates de début et fin de visualisation des données
       getRangeDate <<- reactive({
         if(is.null(input$range[1]) & is.null(input$range[2])){
-          out <<- c(as.Date("2013-05-01"), as.Date("2013-05-08"))
+          out <<- c(as.IDate("2013-05-01"), as.IDate("2013-05-08"))
           return(out)
         } else {
           #           out <<- c(as.Date("2013-05-01"), as.Date("2013-05-20"))
@@ -182,102 +194,161 @@ shinyServer(function(input, output, session) {
           map$showPopup(event$lat, event$lng, content, event$id)
         })
       })
-      # Graphique n°1
+      # Graphique "Distribution du chiffre d'affaire selon la période de la journée"
       output$graphiqueCA <- renderPlot ({
-        #print(commercants.table)
-        
-        print("[output$ca] Construction de l'histogramme")
         
         # Structuration des données du commerçant KEY
-        key.df.transactions$date_transaction <- as.Date(key.df.transactions$date_transaction, format="%d/%m/%Y")
-        key.df.transactions$numero_siret <- as.character(key.df.transactions$numero_siret)
-        key.df.transactions$heure_transaction <- strptime(key.df.transactions$heure_transaction, "%H:%M:%S")
-        print("[output$ca] Modification str de la table du commerçant key.df.transactions terminée")
-        # Initialisation des dates de visualisation
-        # Empêche l'erreur Error : upper value must be greater than lower value 
-        if(is.null(input$range)) {
-          period = (out[2] - out[1]) + 1
-        } else {period = (input$range[2] - input$range[1]) + 1}
+        tr <- df.s
+        tr$date <- with(tr, as.IDate(x = date, format = "%d/%m/%Y")) 
+        tr$heure <- with(tr, as.ITime(x = heure, format = "%H:%M:%S"))
         
-        print(paste("[output$ca] Récupération de la période :", period))
-        print(input$range[1])
-        print(input$range[2])
-        rangeDate <<- getRangeDate()
-        print(paste("Les input$range sont-ils nuls ?", is.null(input$range)))
-        # Filtrage des transactions client selon les dates de visualisation
-        selected <- key.df.transactions[key.df.transactions$date_transaction >= rangeDate[1]
-                                        & key.df.transactions$date_transaction <= rangeDate[2], ]
-        print("[output$ca] Table ky.df subset avec les input$range")
-        selected <- selected[order(selected$date_transaction), ]
-        # Table matin contenant le récapitulatif des transactions 'matin'
-        matin.data <- selected[selected$heure_transaction >= strptime("08:00:00", "%H:%M:%S")
-                               & selected$heure_transaction <= strptime("12:00:00", "%H:%M:%S"), ]
-        matin.data$heure_transaction <- NULL
-        matin.summary <- matin.data %.%
-          group_by(date_transaction) %.%
-          summarise(montant = sum(montant_transaction),
-                    transaction = n())
-        matin <- rep(matin, each = as.numeric(period))
-        matin.summary$period <- matin
-        print("[output$ca] Table key.df.matin construite")
-        # Table matin contenant le récapitulatif des transactions 'midi'
-        midi.data <- selected[selected$heure_transaction > strptime("12:00:00", "%H:%M:%S")
-                              & selected$heure_transaction <= strptime("14:00:00", "%H:%M:%S"), ]
-        midi.data$heure_transaction <- NULL
-        midi.summary <- midi.data %.%
-          group_by(date_transaction) %.%
-          summarise(montant = sum(montant_transaction),
-                    transaction = n())
-        midi <- rep(midi, each = as.numeric(period))
-        midi.summary$period <- midi
-        print("[output$ca] Table key.df.midi construite")
-        # Table matin contenant le récapitulatif des transactions 'pm'
-        pm.data <- selected[selected$heure_transaction > strptime("14:00:00", "%H:%M:%S")
-                            & selected$heure_transaction <= strptime("17:00:00", "%H:%M:%S"), ]
-        pm.data$heure_transaction <- NULL
-        pm.summary <- pm.data %.%
-          group_by(date_transaction) %.%
-          summarise(montant = sum(montant_transaction),
-                    transaction = n())
-        pm <- rep(pm, each = as.numeric(period))
-        pm.summary$period <- pm
-        print("[output$ca] Table key.df.pm construite")
-        # Table matin contenant le récapitulatif des transactions 'soir'
-        soir.data <- selected[(selected$heure_transaction > strptime("17:00:00", "%H:%M:%S")
-                               & selected$heure_transaction < strptime("23:59:59", "%H:%M:%S"))
-                              | (selected$heure_transaction >= strptime("00:00:00", "%H:%M:%S")
-                                 & selected$heure_transaction < strptime("08:00:00", "%H:%M:%S")), ]
-        soir.data$heure_transaction <- NULL
-        soir.summary <- soir.data %.%
-          group_by(date_transaction) %.%
-          summarise(montant = sum(montant_transaction),
-                    transaction = n())
-        soir <- rep(soir, each = as.numeric(period))
-        soir.summary$period <- soir
-        print("[output$ca] Table key.df.soir construite")
-        # Fusion des tables
-        sel <- rbind(matin.summary, midi.summary)
-        sel <- rbind(sel, pm.summary)
-        fin <<- rbind(sel, soir.summary)
-        fin$period <<- factor(fin$period, c("soir", "pm", "midi", "matin"))
-        print("[output$ca] Table fin construite")
+        # Récupération de la période de visualisation        
+        periode <- getRangeDate()        
+        tr <- tr[date %between% c(periode[1],periode[2])]
         
-        print(paste("[output$ca] Tracé selon :", compareCol()))
+        # Tables selon la période de la journée. La séquence générée est par défaut par secondes
+        matin <- tr[heure %in% seq(as.ITime("08:00:00", format = "%H:%M:%S"), as.ITime("12:00:00", format = "%H:%M:%S")), ]
+        midi <- tr[heure %in% seq(as.ITime("12:00:01", format = "%H:%M:%S"), as.ITime("14:00:00", format = "%H:%M:%S")), ]
+        pm <- tr[heure %in% seq(as.ITime("14:00:01", format = "%H:%M:%S"), as.ITime("17:00:00", format = "%H:%M:%S")), ]
+        soir <- rbindlist(list(tr[heure %in% seq(as.ITime("17:00:01", format = "%H:%M:%S"), as.ITime("23:59:59", format = "%H:%M:%S")), ],
+                               tr[heure %in% seq(as.ITime("00:00:00", format = "%H:%M:%S"), as.ITime("07:59:59", format = "%H:%M:%S")), ]))
         
-        print("[output$ca] ggplot en construction")
-        #         cols <- c(rgb(153, 192, 219, maxColorValue = 255), rgb(251, 153, 142, maxColorValue = 255), rgb(253, 195, 129, maxColorValue = 255), rgb(194, 228, 135, maxColorValue = 255))
-        #         cols <- c(matin="Blue", midi="Green", pm="Black", soir="Red")  
-        cols <- c(matin="#99C0DB", midi="#FB998E", pm="#FDC381", soir="#C2E487")
-        print(paste("Niveaux de fin :", str(fin)))
-        return(ggplot(data = fin, aes_string(x = "date_transaction", y = compareCol())) +
-                 geom_bar(stat = 'identity', aes(fill = period)) +
-                 theme_bw() +
-                 labs(x = "Date de la transaction (mois/jour)", y = ifelse(compareCol()=="montant", "Montant des transactions (en €)", "Nombre de transactions")) +
-                 scale_fill_manual(values = cols) +
-                 theme(axis.title.x = element_text(vjust = -0.5),
-                       axis.title.y = element_text(vjust = 2),
-                       #                        legend.position = "none",
-                       panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(), rect=element_blank()))
+        # La classe IDate contient un attribut qui ordonne automatiquement les données
+        matin.s <- matin %>%
+          group_by(date) %>%
+          summarise(montant = sum(montant),
+                    transaction = n())
+        # Ajout de la dernière colonne pour le tracé
+        matin.s[,period:="matin"]
+        
+        midi.s <- midi %>%
+          group_by(date) %>%
+          summarise(montant = sum(montant),
+                    transaction = n())
+        midi.s[,period:="midi"]
+        
+        pm.s <- pm %>%
+          group_by(date) %>%
+          summarise(montant = sum(montant),
+                    transaction = n())
+        pm.s[,period:="pm"]
+        
+        soir.s <- soir %>%
+          group_by(date) %>%
+          summarise(montant = sum(montant),
+                    transaction = n())
+        soir.s[,period:="soir"]
+        
+        # Fusion de l'ensemble des tables
+        data.ca <- rbindlist(list(matin.s, midi.s, pm.s, soir.s))
+        
+        # Modification de la structure pour compatibilité avec la construction du graphique
+        data.ca$period <- factor(data.ca$period, c("soir", "pm", "midi", "matin"))
+        # data.ca.color <- c(matin="#99C0DB", midi="#FB998E", pm="#FDC381", soir="#C2E487")
+        
+        ggplot(data = data.ca, aes_string(x = "date", y = "montant")) +
+          geom_bar(stat = 'identity', aes(fill = period)) +
+          theme_bw() +
+          labs(x = "Date de la transaction (mois/jour)", y = "Montant des transactions (en €)") +
+          scale_fill_manual(values = c(matin="#99C0DB", midi="#FB998E", pm="#FDC381", soir="#C2E487")) +
+          theme(axis.title.x = element_text(vjust = -0.5),
+                axis.title.y = element_text(vjust = 2),
+                panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(), rect=element_blank())
+        
+        #         #print(commercants.table)
+        #         
+        #         print("[output$ca] Construction de l'histogramme")
+        #         
+        #         # Structuration des données du commerçant KEY
+        #         key.df.transactions$date_transaction <- as.Date(key.df.transactions$date_transaction, format="%d/%m/%Y")
+        #         key.df.transactions$numero_siret <- as.character(key.df.transactions$numero_siret)
+        #         key.df.transactions$heure_transaction <- strptime(key.df.transactions$heure_transaction, "%H:%M:%S")
+        #         print("[output$ca] Modification str de la table du commerçant key.df.transactions terminée")
+        #         # Initialisation des dates de visualisation
+        #         # Empêche l'erreur Error : upper value must be greater than lower value 
+        #         if(is.null(input$range)) {
+        #           period = (out[2] - out[1]) + 1
+        #         } else {period = (input$range[2] - input$range[1]) + 1}
+        #         
+        #         print(paste("[output$ca] Récupération de la période :", period))
+        #         print(input$range[1])
+        #         print(input$range[2])
+        #         rangeDate <<- getRangeDate()
+        #         print(paste("Les input$range sont-ils nuls ?", is.null(input$range)))
+        #         # Filtrage des transactions client selon les dates de visualisation
+        #         selected <- key.df.transactions[key.df.transactions$date_transaction >= rangeDate[1]
+        #                                         & key.df.transactions$date_transaction <= rangeDate[2], ]
+        #         print("[output$ca] Table ky.df subset avec les input$range")
+        #         selected <- selected[order(selected$date_transaction), ]
+        #         # Table matin contenant le récapitulatif des transactions 'matin'
+        #         matin.data <- selected[selected$heure_transaction >= strptime("08:00:00", "%H:%M:%S")
+        #                                & selected$heure_transaction <= strptime("12:00:00", "%H:%M:%S"), ]
+        #         matin.data$heure_transaction <- NULL
+        #         matin.summary <- matin.data %.%
+        #           group_by(date_transaction) %.%
+        #           summarise(montant = sum(montant_transaction),
+        #                     transaction = n())
+        #         matin <- rep(matin, each = as.numeric(period))
+        #         matin.summary$period <- matin
+        #         print("[output$ca] Table key.df.matin construite")
+        #         # Table matin contenant le récapitulatif des transactions 'midi'
+        #         midi.data <- selected[selected$heure_transaction > strptime("12:00:00", "%H:%M:%S")
+        #                               & selected$heure_transaction <= strptime("14:00:00", "%H:%M:%S"), ]
+        #         midi.data$heure_transaction <- NULL
+        #         midi.summary <- midi.data %.%
+        #           group_by(date_transaction) %.%
+        #           summarise(montant = sum(montant_transaction),
+        #                     transaction = n())
+        #         midi <- rep(midi, each = as.numeric(period))
+        #         midi.summary$period <- midi
+        #         print("[output$ca] Table key.df.midi construite")
+        #         # Table matin contenant le récapitulatif des transactions 'pm'
+        #         pm.data <- selected[selected$heure_transaction > strptime("14:00:00", "%H:%M:%S")
+        #                             & selected$heure_transaction <= strptime("17:00:00", "%H:%M:%S"), ]
+        #         pm.data$heure_transaction <- NULL
+        #         pm.summary <- pm.data %.%
+        #           group_by(date_transaction) %.%
+        #           summarise(montant = sum(montant_transaction),
+        #                     transaction = n())
+        #         pm <- rep(pm, each = as.numeric(period))
+        #         pm.summary$period <- pm
+        #         print("[output$ca] Table key.df.pm construite")
+        #         # Table matin contenant le récapitulatif des transactions 'soir'
+        #         soir.data <- selected[(selected$heure_transaction > strptime("17:00:00", "%H:%M:%S")
+        #                                & selected$heure_transaction < strptime("23:59:59", "%H:%M:%S"))
+        #                               | (selected$heure_transaction >= strptime("00:00:00", "%H:%M:%S")
+        #                                  & selected$heure_transaction < strptime("08:00:00", "%H:%M:%S")), ]
+        #         soir.data$heure_transaction <- NULL
+        #         soir.summary <- soir.data %.%
+        #           group_by(date_transaction) %.%
+        #           summarise(montant = sum(montant_transaction),
+        #                     transaction = n())
+        #         soir <- rep(soir, each = as.numeric(period))
+        #         soir.summary$period <- soir
+        #         print("[output$ca] Table key.df.soir construite")
+        #         # Fusion des tables
+        #         sel <- rbind(matin.summary, midi.summary)
+        #         sel <- rbind(sel, pm.summary)
+        #         fin <<- rbind(sel, soir.summary)
+        #         fin$period <<- factor(fin$period, c("soir", "pm", "midi", "matin"))
+        #         print("[output$ca] Table fin construite")
+        #         
+        #         print(paste("[output$ca] Tracé selon :", compareCol()))
+        #         
+        #         print("[output$ca] ggplot en construction")
+        #         #         cols <- c(rgb(153, 192, 219, maxColorValue = 255), rgb(251, 153, 142, maxColorValue = 255), rgb(253, 195, 129, maxColorValue = 255), rgb(194, 228, 135, maxColorValue = 255))
+        #         #         cols <- c(matin="Blue", midi="Green", pm="Black", soir="Red")  
+        #         cols <- c(matin="#99C0DB", midi="#FB998E", pm="#FDC381", soir="#C2E487")
+        #         print(paste("Niveaux de fin :", str(fin)))
+        #         return(ggplot(data = fin, aes_string(x = "date_transaction", y = compareCol())) +
+        #                  geom_bar(stat = 'identity', aes(fill = period)) +
+        #                  theme_bw() +
+        #                  labs(x = "Date de la transaction (mois/jour)", y = ifelse(compareCol()=="montant", "Montant des transactions (en €)", "Nombre de transactions")) +
+        #                  scale_fill_manual(values = cols) +
+        #                  theme(axis.title.x = element_text(vjust = -0.5),
+        #                        axis.title.y = element_text(vjust = 2),
+        #                        #                        legend.position = "none",
+        #                        panel.grid.minor.x=element_blank(), panel.grid.major.x=element_blank(), rect=element_blank()))
       })
       output$caTitre <- renderUI({
         tagList(tags$h4("Distribution du chiffre d'affaire selon la période de la journée"))
@@ -297,22 +368,22 @@ shinyServer(function(input, output, session) {
       output$clienteleTitre <- renderUI({
         tagList(tags$h4("Répartition de la clientèle"))
       })
+      # Graphique 'Répartition de la clientèle'
       output$graphiqueClientele <- renderPlot({
-        #         getRangeDate()
-        ggplot(aes(x = factor(1), fill = factor(type)), data = fidelisation()) +
-          geom_bar(width = 1, colour = "white") +
+        donnees = fidelisation()
+        print(donnees)
+        ggplot(aes(x = 1, y = value, fill = type), data = donnees) +
+          geom_bar(stat = 'identity', width = 1, colour = "black") +
           coord_polar(theta = "y") +
-          #labs(title = 'Fidélité clientèle') +  
+          guides(fill=guide_legend(override.aes=list(colour=NA))) +
           theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
                 panel.background=element_blank(), panel.border=element_blank(), panel.grid=element_blank(),
                 legend.title=element_blank())
       })
-      fidelite.resume <<- reactive({
+      # Renvoie la table fidelite lorsque la période de visualisation est modifiée (astuce pour rendre fidelite réactive)
+      fidelite.up <<- reactive({
         getRangeDate()
-        df <- fidelite %>%
-          group_by(type) %>%
-          summarise(n = n())
-        return(df)
+        fidelite
       })
       output$clienteleDefinition <- renderUI({
         tagList(
@@ -329,10 +400,10 @@ shinyServer(function(input, output, session) {
       
       output$repartitionClientele <- renderUI({
         #         getRangeDate()
-        fidelite.data <- fidelite.resume()
-        tagList(div(tags$h2(fidelite.data[fidelite.data$type=='Prospects', ]$n), tags$h5("Prospects")),
-                div(tags$h2(ifelse(nrow(fidelite.data[fidelite.data$type=='Infidèles',])>0,fidelite.data[fidelite.data$type=='Infidèles', ]$n,0)), tags$h5("Clients infidèles")),
-                div(tags$h2(ifelse(nrow(fidelite.data[fidelite.data$type=='Fidèles',])>0,fidelite.data[fidelite.data$type=='Fidèles', ]$n,0)), tags$h5("Clients fidèles"))
+        fidelite <- fidelite.up()
+        tagList(div(tags$h2(fidelite[fidelite$type=="Prospects",1]), tags$h5("Prospects")),
+                div(tags$h2(ifelse(fidelite[fidelite$type=="Infidèles",1]>0,fidelite[fidelite$type=="Infidèles",1],0)), tags$h5("Clients infidèles")),
+                div(tags$h2(ifelse(fidelite[fidelite$type=="Fidèles",1]>0,fidelite[fidelite$type=="Fidèles",1],0)), tags$h5("Clients fidèles"))
         )
       })
       #       fidelite.data <<- fidelite.resume()
@@ -346,58 +417,102 @@ shinyServer(function(input, output, session) {
       #       output$repartitionClienteleFid <- renderUI({
       #         tagList(tags$h2(ifelse(nrow(fidelite.data[fidelite.data$type=='Fidèles',])>0,fidelite.data[fidelite.data$type=='Fidèles', ]$n,0)), tags$h5("Clients fidèles"))
       #       })
-      output$prospects <- renderDataTable({
-        barycentre(recapitulatif(commercants.table))
-        action(input$distance)
-      })
+      ###################################################################################################################
+      #                                     OPTIMISER LE CALCUL DU BARYCENTRE                                           #
+      ###################################################################################################################
+      #       output$prospects <- renderDataTable({
+      #         barycentre(recapitulatif(commercants.table))
+      #         action(input$distance)
+      #       })
+      ###################################################################################################################
+      #                                                                                                                 #
+      ###################################################################################################################
       fidelisation <- reactive({
-        rangeDate <- getRangeDate()
-        print(rangeDate)
-        df <- transactionsNAF[transactionsNAF$date >= rangeDate[1]
-                              & transactionsNAF$date <= rangeDate[2], ]
-        df <- df[1:300, ]
-        if(nrow(df) == 0) {
-          return()
-        }
-        # on regroupe les transactions par identifiant client, raison sociale du commerçant ainsi que sa géolocalisation
-        resume <<- df %>%
-          group_by("client", "siret") %>%
-          summarise(n = n())
-        clients <- unique(resume[ , 1])
-        #print(clients)
-        table <- matrix(ncol = 2)
-        fidelite <<- as.data.frame(table)
-        #   value <<- reactiveValues(fidelite = as.data.frame(table))
-        names(fidelite) <<- c("client", "type")
-        fidelite$client <<- as.character(fidelite$client)
-        fidelite$type <<- as.character(fidelite$type)
-        # On réalise autant d'itérations qu'il y a de clients
-        print("#####################################")
-        print(length(clients))
-        print("#####################################")
-        for(i in 1:length(clients)) {
-          print(paste("i =", i, "client n°", clients[i]))
-          # On récupère les consommations d'un seul client
-          determination <- subset(resume, clients[i] == resume$client)
-          # Si le client n'a pas fait d'achats chez le commerçant connecté ...
-          if(nrow(determination[determination$siret == KEY$siret, ]) == 0) {
-            # Alors c'est un prospect (s'il apparaît dans resume c'est parcequ'il a au moins réalisé un achat dans ce type de NAF)
-            fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Prospects"))
-            # S'il a consommé chez le commerçant connecté et ailleurs, alors il est infidèle
-          } else if(nrow(determination[determination$siret == KEY$siret, ]) >= 1
-                    & nrow(determination[determination$siret != KEY$siret, ]) >= 1) {
-            fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Infidèles"))
-            # Sinon il est fidèle
-          } else if(nrow(determination[determination$siret == KEY$siret, ]) >= 1
-                    & nrow(determination[determination$siret != KEY$siret, ]) == 0)
-          {fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Fidèles"))}
-        }
-        fidelite <<- fidelite[-1, ]
-        #         fidelite.data <<- fidelite.resume()
-        print(fidelite)
-        return(fidelite)
+        #         
+        #         # Chargement de la table sous forme de data table
+        #         df.n <<- fread(getNameNAF(), sep = "\t")
+        #         setnames(x = df.n, old=names(df.n), new = var)
+        
+        tr <- df.n
+        
+        # Structuration de l'ensemble des transactions
+        tr$date <- with(tr, as.IDate(x = date, format = "%d/%m/%Y"))
+        tr$siret <- as.factor(tr$siret)
+        
+        # Récupération de la période de visualisation
+        periode <- getRangeDate()        
+        tr <- tr[date %between% c(periode[1],periode[2])]
+        
+        # Récupération des 'reliques' transactionnelles
+        tr.c <- unique(tr,by=c("client","siret"))[j=list(client,siret)]
+        
+        # On regroupe la table par client puis on test si le siret deu commerçant est présent dans au moins une des transactions du client
+        c.group <- group_by(tr.c, client)
+        autres <- filter(c.group, KEY$siret %in% siret)
+        
+        # On compte le nombre d'occurrences pour chaque client. S'il est supérieur à un, c'est un infidèle
+        # fidelite[1] = TRUE : clients fidèles
+        # fidelite[2] = FALSE : clients infidèles
+        # fidelite[3] : prospects
+        fidelite <<- c(table(summarise(autres, n=n())$n==1))
+        fidelite[3] <<- nrow(unique(tr,by=c("client")))-(sum(fidelite))
+        fidelite <<- cbind(melt(fidelite), type = c("Infidèles","Fidèles","Prospects"))
+        #         names(fidelite.m) <<- c("inf","fid","pros")
+        #         valuesR <- reactiveValues(fidelite = fidelite)
+        #         valuesR$fidelite <<- melt(fidelite.m)
+        #         valuesR$fidelite <<- cbind(fidelite, type = c("inf","fid","pros"))
+        #         print(paste("fidelite est réactive ?",is.reactivevalues(valuesR$fidelite)))
+        #         print(paste("USER est réactive ?",is.reactivevalues(USER$Logged)))
+        #         print(valuesR$fidelite)
+        
+        fidelite
+        ################################################################################################################################
+        #         rangeDate <- getRangeDate()
+        #         print(rangeDate)
+        #         df <- transactionsNAF[transactionsNAF$date >= rangeDate[1]
+        #                               & transactionsNAF$date <= rangeDate[2], ]
+        #         df <- df[1:300, ]
+        #         if(nrow(df) == 0) {
+        #           return()
+        #         }
+        #         # on regroupe les transactions par identifiant client, raison sociale du commerçant ainsi que sa géolocalisation
+        #         resume <<- df %>%
+        #           group_by("client", "siret") %>%
+        #           summarise(n = n())
+        #         clients <- unique(resume[ , 1])
+        #         #print(clients)
+        #         table <- matrix(ncol = 2)
+        #         fidelite <<- as.data.frame(table)
+        #         #   value <<- reactiveValues(fidelite = as.data.frame(table))
+        #         names(fidelite) <<- c("client", "type")
+        #         fidelite$client <<- as.character(fidelite$client)
+        #         fidelite$type <<- as.character(fidelite$type)
+        #         # On réalise autant d'itérations qu'il y a de clients
+        #         print("#####################################")
+        #         print(length(clients))
+        #         print("#####################################")
+        #         for(i in 1:length(clients)) {
+        #           print(paste("i =", i, "client n°", clients[i]))
+        #           # On récupère les consommations d'un seul client
+        #           determination <- subset(resume, clients[i] == resume$client)
+        #           # Si le client n'a pas fait d'achats chez le commerçant connecté ...
+        #           if(nrow(determination[determination$siret == KEY$siret, ]) == 0) {
+        #             # Alors c'est un prospect (s'il apparaît dans resume c'est parcequ'il a au moins réalisé un achat dans ce type de NAF)
+        #             fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Prospects"))
+        #             # S'il a consommé chez le commerçant connecté et ailleurs, alors il est infidèle
+        #           } else if(nrow(determination[determination$siret == KEY$siret, ]) >= 1
+        #                     & nrow(determination[determination$siret != KEY$siret, ]) >= 1) {
+        #             fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Infidèles"))
+        #             # Sinon il est fidèle
+        #           } else if(nrow(determination[determination$siret == KEY$siret, ]) >= 1
+        #                     & nrow(determination[determination$siret != KEY$siret, ]) == 0)
+        #           {fidelite <<- rbind(fidelite, c(as.character(clients[i]), "Fidèles"))}
+        #         }
+        #         fidelite <<- fidelite[-1, ]
+        #         #         fidelite.data <<- fidelite.resume()
+        #         print(fidelite)
+        #         return(fidelite)
       })
-      
     }
   })
 })

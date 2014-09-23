@@ -4,8 +4,8 @@
 
 library(shiny)
 library(leaflet)
-library(rCharts)
 library(ggplot2)
+library(data.table)
 
 shinyUI(navbarPage("OPAVaD", id = "opavad",
                    tabPanel("Activité",
