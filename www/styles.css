@@ -34,6 +34,11 @@ div.login {
   text-align: left;
   }
 
+.navbar {
+   height: 20px;
+   display: none;
+}
+
 body {
   overflow-y: scroll;
   padding-bottom: 20px;
@@ -51,11 +56,7 @@ body {
   bottom: 400;
 }
 
-#merchant {
-  margin-left: 15px;
-}
-
-#dashbord, #dashbord-bis {
+#dashbord {
   background-color: white;
   padding: 0 20px 20px 20px;
   cursor: move;
@@ -63,38 +64,12 @@ body {
   zoom: 0.9;
 }
 
-#comparerPeriode {
-  /*float: right;*/
-}
-
 #data-viz {
   padding-top: 25%;
 }
 
-div.navbar {
-  display: none;
-}
-
 #graphique-tab {
   display: none;
-}
-
-#comparerCritere {
-  /*float: left;*/
-}
-
-#desc {
-  font-size: 16px;
-}
-
-#clienteleDetails {
-  top: auto;
-  bottom: auto;
-}
-
-.navbar {
-   height: 20px;
-   display: none;
 }
 
 div#idcaTitre {

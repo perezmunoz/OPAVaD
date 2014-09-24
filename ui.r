@@ -2,18 +2,22 @@
 ###### ui ######
 ################
 
-library(shiny)
-library(leaflet)
-library(ggplot2)
-library(data.table)
+require(shiny)
+require(leaflet)
+require(ggplot2)
+require(data.table)
+require(bit64)
+require(dplyr)
+require(reshape2)
 
 shinyUI(navbarPage("OPAVaD", id = "opavad",
                    tabPanel("Activité",
+                            # Scripts de style et gérant l'apparition du loader ajax
                             tags$head(tags$link(rel = 'stylesheet', type = 'text/css', href = 'styles.css'),
                                       tags$script(src="nav.js"),
                                       tags$script(type="text/javascript", src = "busy.js")
                             ),
-                            # Ajax loader
+                            # Image ajax loader
                             div(class = "busy", id = "loading",
                                 p("Affichage en cours..."),
                                 img(src="ajaxloader.gif")
@@ -23,7 +27,6 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                 uiOutput("uiLogin"),
                                 textOutput("pass")
                             ),
-                            # Mon fond de commerce
                             # Carte et panneau 'Mon commerce'
                             fluidRow(
                               uiOutput("carte"),
@@ -48,7 +51,7 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                                                  ),
                                                                  fluidRow(
                                                                    column(12,
-                                                                          # Graphique 'Répartition du chiffre d'affaire'
+                                                                          # Graphique 'Distribution du chiffre d'affaire selon la période de la journée'
                                                                           plotOutput("graphiqueCA"))
                                                                  ),
                                                                  fluidRow(
@@ -60,7 +63,7 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                                         ),
                                                         tabPanel("Fidélité clients", 
                                                                  column(2,
-                                                                        # Indications sur le nombrs de prospects, clients fidèles et clienst infidèles
+                                                                        # Répartitions des clients en terme de prospects, clients fidèles et clients infidèles
                                                                         uiOutput("repartitionClientele")
                                                                  ),
                                                                  column(6,
@@ -82,6 +85,7 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                      )
                             )
                    ),
+                   # TO DO
                    tabPanel("Prospection",
                             div(class = "busy", id = "loading",
                                 p("Affichage en cours..."),
@@ -96,5 +100,6 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                               dataTableOutput("prospects")
                             )
                    ),
+                   # TO DO
                    tabPanel("A propos")
 ))

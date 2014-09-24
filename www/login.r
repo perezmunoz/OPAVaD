@@ -2,13 +2,12 @@
 ###### Log in module ######
 ###########################
 
-# Variable réactive nécessaire à la transition de l'interface connexion à l'interface mon fond de commerce
+# Variable réactive nécessaire à la transition de l'interface de connexion et l'interface mon fond de commerce
 USER <- reactiveValues(Logged = Logged)
 
 # Interface de connexion
 output$uiLogin <- renderUI({
   if (USER$Logged == FALSE) {
-    print("[output$uiLogin] Connexion non établie")
     wellPanel(
       textInput("userName", "Num\u00E9ro de Siret :", "44031024100029"),
       br(),
@@ -23,13 +22,10 @@ output$pass <- renderText({
     if (!is.null(input$Login)) {
       if (input$Login > 0) {
         
-        print("[output$pass] Vérification de la connexion")
-        userId <- isolate(input$userName)
-        KEY <<- head(commercants[commercants$siret == input$userName, ], 1)
-        affiliate <- KEY$affilie_ca == 'O'
-        
-        if(length(affiliate) != 0) {
-          if (affiliate == 'TRUE') {
+        KEY <<- index[index$siret == input$userName, ]
+
+        if(length(KEY) != 0) {
+          if (KEY$ca == 'O') {
             USER$Logged <- TRUE
           } else  {
             "Num\u00E9ro de Siret incorrecte !"

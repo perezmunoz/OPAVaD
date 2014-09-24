@@ -1,3 +1,4 @@
+// Fonction affichage le panneau 'Chargement en cours...' avec l'ajax loader
 setInterval(function(){
   if ($('html').attr('class')=='shiny-busy') {
     setTimeout(function() {
