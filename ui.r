@@ -3,6 +3,8 @@
 ################
 
 require(shiny)
+library(shinyBS)
+library(ggvis)
 require(leaflet)
 require(ggplot2)
 require(data.table)
@@ -61,7 +63,7 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                                                    )
                                                                  )
                                                         ),
-                                                        tabPanel("Fidélité clients", 
+                                                        tabPanel("Fidélité de la clientèle", 
                                                                  column(2,
                                                                         # Répartitions des clients en terme de prospects, clients fidèles et clients infidèles
                                                                         uiOutput("repartitionClientele")
@@ -80,6 +82,35 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                                                         # Définition des notions utilisées
                                                                         uiOutput("clienteleDefinition")
                                                                  )
+                                                        ),
+                                                        tabPanel("Panier de la clientèle",
+                                                                 column(9,
+                                                                        ggvisOutput('panier-plot')
+                                                                 ),
+                                                                 column(3,
+                                                                        # Fenêtre 'modal'
+                                                                        uiOutput("modalUI"),
+                                                                        
+                                                                        # Ensemble des inputs encapsulés pour une réinitialisation ultérieure
+                                                                        uiOutput('resetable_input'),
+                                                                        
+                                                                        # Réglage de la précision de la distribution
+                                                                        sliderInput(inputId = "bin",
+                                                                                    label = "Ajustement de la précision",
+                                                                                    min = .1, max = 2, value = 1, step = .1),
+                                                                        
+                                                                        br(),
+                                                                        
+                                                                        # Bouton servan à réinitialiser les variables 'input'
+                                                                        actionButton("reset_input", "Reset inputs"),
+                                                                        
+                                                                        br(),
+                                                                        
+                                                                        # Bouton affichant la table des transactions
+                                                                        bsButton("btnModal", "Open Modal", style = "primary"),
+                                                                        
+                                                                        br(),
+                                                                        uiOutput('nb'))
                                                         )
                                             )
                                      )

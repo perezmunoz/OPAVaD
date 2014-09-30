@@ -3,6 +3,8 @@
 ####################
 
 require(shiny)
+library(shinyBS)
+library(ggvis)
 require(leaflet)
 require(ggplot2)
 require(data.table)
@@ -39,6 +41,12 @@ shinyServer(function(input, output, session) {
       # Structuration de la data table
       df.r$siret <<- as.character(df.r$siret)
       df.r$date <<- as.IDate(df.r$date, format = "%d/%m/%Y")
+      
+      # Chargement de la data table des transactions du commerçant connecté pour le calcul du panier
+      df.a <<- subset(df.s, select = c('montant','date','client','age','sexe','csp','situation','villeclient'))
+      
+      # Structuration de la data table
+      df.a$date <<- as.IDate(df.a$date, format = "%d/%m/%Y")
       
       # Créaction d'un 'proxy' de la carte à l'aide duquel les cercles seront construits
       map <- createLeafletMap(session, 'map')
@@ -331,6 +339,176 @@ shinyServer(function(input, output, session) {
                 div(tags$h2(ifelse(fidelite[fidelite$type=="Fidèles",1]>0,fidelite[fidelite$type=="Fidèles",1],0)), tags$h5("Clients fidèles"))
         )
       })
+      
+      ###################################################################################################################
+      #                                          MODULE PROFIL DES CLIENTS                                              #
+      ###################################################################################################################
+      
+      updateCritere <- function(){
+        
+        # Si la table est mauvaise on réinitialise les critères avec ceux ayant conduit à une bonne table (crit.panier)
+        updateSelectInput(session, inputId = "sexe",
+                          label = "Sexe",
+                          choices = c(Choisir = '', "M", "F"),
+                          selected = crit.panier$sexeClients)
+        
+        updateSelectInput(session, inputId = "csp",
+                          label = "Catégorie socioprofessionnelle",
+                          choices = c(Choisir = '', "AGRICULTEURS", "ARTISANTS COMMERCANTS ET CHEFS D'ENTREPRISES", "AUTRES SANS ACTIVITE PROF.",
+                                      "CADRES ET PROF INTELLECTUELLES", "EMPLOYES", "OUVRIERS", "PROFESSIONS INTERMEDIAIRES", "RETRAITES"),
+                          selected = crit.panier$cspClients)
+        
+        updateSelectInput(session, inputId = "situation",
+                          label = "Situation familiale",
+                          choices = c(Choisir = "", "CELIBATAIRE", "CONCUBIN", "DIVORCE", "INIT",
+                                      "MARIE", "PACSE", "SEPARE", "VEUF"),
+                          selected = crit.panier$situationClients)
+      }
+      
+      panier <- reactive({
+        
+        # On récupère les critères nouveaux au fur et à mesure qu'ils sont entrés par l'utilisateur
+        crit.new <- data.frame(dateClients = c(input$date.vis),
+                               sexeClients = c(input$sexe),
+                               cspClients = c(input$csp),
+                               situationClients = c(input$situation))
+        
+        # On récupère dans une nouvelle table les transactions pour un tel jour et les montants positifs
+        # Les montants négatifs correspondant à des retours ou autres on ne les considère pas
+        df.new <- subset(df.a, date == input$date.vis & montant > 0)
+        
+        # On filtre les données
+        if(input$sexe!="") {
+          df.new <- subset(df.new, sexe == input$sexe)
+        }
+        
+        if(input$csp!="")
+          df.new <- subset(df.new, csp == input$csp)
+        
+        if(input$situation!="")
+          df.new <- subset(df.new, situation == input$situation)
+        
+        # Enfin on filtre selon l'âge
+        df.new <- subset(df.new, age >= input$age[1] & age <= input$age[2])
+        getDataPanier(df.new, crit.new)
+      })
+      
+      getDataPanier <- function(df, crit){
+        
+        if(nrow(df)>=2) {
+          # ie que la nouvelle table créée est bonne donc on la stocke pour une utilisation ultérieure
+          df.panier <<- df
+          crit.panier <<- crit
+          ggvisPanier()
+        } else {
+          # On update les sélecteurs
+          updateCritere()
+        }
+      }
+      
+      # Graphique ggvis
+      ggvisPanier <- function(){
+        df.panier %>%
+          ggvis(x = ~montant) %>%
+          layer_densities(adjust = input$bin)        
+      } %>%
+        bind_shiny('panier-plot')
+      
+      # Nombre de lignes de la table filtrée
+      output$nb <- renderUI({
+        
+        # Point d'entrée du module 'Panier de la clientèle'
+        panier()
+        tagList(tags$h4(paste("Visualisation sur", nrow(df.panier), "clients"))
+        )
+      })
+      
+      # Fonction forçant l'apparition de la fenêtre 'modal' sans trigger
+      fenetreModal <- function(){
+        toggleModal(session, "modAver")
+      }
+      
+      output$modalUI <- renderUI({
+        # On récupère en variable locales les critères de l'utilisateur
+        # L'écrire en dur dans HTML(...) est buggé
+        sexe <- input$sexe
+        csp <- input$csp
+        situation <- input$situation
+        
+        bsModal("modAver", "Profil des clients", trigger = "btnModal",
+                tags$p("Ci-dessous le profil des clients ayant effectué une (ou plusieurs) transaction(s) le ",
+                       tags$strong(crit.panier$dateClients), "et correspondant aux critères suivants :",
+                       tags$ul(
+                         tags$li(HTML(paste("de sexe", ifelse(sexe=="M"|sexe=="F", paste(tags$strong(sexe)), paste(tags$strong("masculin"), "ou", tags$strong("féminin")))))),
+                         tags$li(HTML(paste("de CSP", ifelse(csp!="", paste(tags$strong(csp)), paste(tags$strong("quelconque")))))),
+                         tags$li(HTML(paste("de situation", ifelse(situation!="", paste(tags$strong(situation)), paste(tags$strong("quelconque"))))))
+                       )
+                ),
+                br(),
+                tags$div(class = "row-fluid",
+                         tags$div(class = "span12",
+                                  dataTableOutput("transactionsClientsPrecis"))
+                )
+        )
+      })
+      
+      # Table des transactions
+      output$transactionsClientsPrecis <- renderDataTable({
+        feinterReactivite()
+        unique(subset(df.panier, select = c("age", "sexe", "csp", "situation", "villeclient")))
+      })
+      
+      feinterReactivite <- reactive({
+        date <- input$date.vis
+        sexe <- input$sexe
+        csp <- input$csp
+        situation <- input$situation
+        age <- input$age
+      })
+      
+      # Astuce pour pouvoir réinitialiser les variables 'input'
+      output$resetable_input <- renderUI({
+        
+        times <- input$reset_input
+        div(id = letters[(times %% length(letters)) + 1],
+            # Date de visualisation des données
+            dateInput(inputId = "date.vis", label = "Date de visualisation du panier", value = "2013-05-05", language = "fr"),
+            
+            # Faire apparaître le choix du sexe
+            selectInput("sexe",
+                        label = "Sexe",
+                        choices = c(Choisir = '', "M", "F"),
+                        selectize = TRUE
+            ),
+            
+            # Faire apparaître le choix de la csp
+            selectInput("csp",
+                        label = "Catégorie Socioprofessionnelle",
+                        choices = c(Choisir = '', "AGRICULTEURS", "ARTISANTS COMMERCANTS ET CHEFS D'ENTREPRISES", "AUTRES SANS ACTIVITE PROF.",
+                                    "CADRES ET PROF INTELLECTUELLES", "EMPLOYES", "OUVRIERS", "PROFESSIONS INTERMEDIAIRES", "RETRAITES"),
+                        selectize = TRUE
+            ),
+            
+            # Faire apparaître le choix de la situation
+            selectInput("situation",
+                        label = "Situation familiale",
+                        choices = c(Choisir = "", "CELIBATAIRE", "CONCUBIN", "DIVORCE", "INIT",
+                                    "MARIE", "PACSE", "SEPARE", "VEUF"),
+                        selectize = TRUE
+            ),
+            
+            # Faire apparaître le choix de l'âge
+            sliderInput(inputId = "age",
+                        label = "Tranche d'âge",
+                        min = 15, max = 100, value = c(15,100))
+        )
+      })
+      
+      ###################################################################################################################
+      #                                       FIN MODULE PROFIL DES CLIENTS                                             #
+      ###################################################################################################################
+      
+      
       
       ###################################################################################################################
       #                                     OPTIMISER LE CALCUL DU BARYCENTRE                                           #

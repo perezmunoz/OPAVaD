@@ -23,6 +23,11 @@ setnames(x = index, old=names(index), new=varIndex)
 # Structuration des données
 index$siret <- as.character(index$siret)
 
+
+# Variable de stockage des données pour le graphique panier
+df.panier <- data.frame()
+crit.panier <- data.frame()
+
 # Attributs des data tables df.s et df.n
 var <- c('montant','date','heure','siret','rs','naf','villecom','lon','lat','affilie','client','age','sexe','csp','optel','opmail','mail',
          'enfant','situation','anciennete','segment','score','avoir','appinternet','appmobile','villeclient','uu','carte','libelle','reseau',

@@ -5,8 +5,8 @@ setInterval(function(){
       if ($('html').attr('class')=='shiny-busy') {
         $('div.busy').show();
       }
-    }, 1000)
+    }, 500)
   } else {
     $('div.busy').hide();
   }
-}, 100)
+}, 500)
