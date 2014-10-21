@@ -2,15 +2,19 @@
 ###### server ######
 ####################
 
-require(shiny)
+library(shiny)
 library(shinyBS)
 library(ggvis)
-require(leaflet)
-require(ggplot2)
-require(data.table)
-require(bit64)
-require(dplyr)
-require(reshape2)
+library(leaflet)
+library(ggplot2)
+library(data.table)
+library(bit64)
+library(plyr)
+library(dplyr)
+library(reshape2)
+library(parallel)
+library(doParallel)
+library(foreach)
 
 Logged = FALSE;
 
@@ -32,7 +36,7 @@ shinyServer(function(input, output, session) {
       
       # Chargement de la data table des transactions NAF selon le commerçant connecté  
       df.n <<- fread(getNameNAF(), sep = "\t")
-      setnames(x = df.n, old=names(df.n), new = var)
+      setnames(x = df.n, old=names(df.n), new = var.n)
       
       # Chargement de la data table du résumé des transactions des commerçants d'un même NAF
       df.r <<- fread(paste("C:/Users/CAvatar/Desktop/MAP/", KEY$naf, ".txt", sep = ""), sep = "\t")
@@ -48,6 +52,12 @@ shinyServer(function(input, output, session) {
       # Structuration de la data table
       df.a$date <<- as.IDate(df.a$date, format = "%d/%m/%Y")
       
+      # Coordonnées géospatiales du commerçant transformées en radians (calcul de la prospection)
+      latC <<- KEY$lat * pi/180
+      lonC <<- KEY$lon * pi/180
+      
+      
+      
       # Créaction d'un 'proxy' de la carte à l'aide duquel les cercles seront construits
       map <- createLeafletMap(session, 'map')
       
@@ -58,9 +68,9 @@ shinyServer(function(input, output, session) {
         rangeDate <- getRangeDate()
         
         dat <- df.r[df.r$date >= rangeDate[1]
-                           & df.r$date <= rangeDate[2], ]
+                    & df.r$date <= rangeDate[2], ]
         dat <- dat[order(dat$siret), ]
-        dat <- group_by(x = dat, siret, rs, naf, ville, lat, lon, ca)
+        dat <-group_by(dat, siret, rs, naf, ville, lat, lon, ca)
         dat <- summarise(.data = dat, montant = sum(montant), transaction = sum(transaction))
         dat
       }
@@ -242,7 +252,7 @@ shinyServer(function(input, output, session) {
         
         # Modification de la structure pour compatibilité avec la construction du graphique
         data.ca$period <- factor(data.ca$period, c("soir", "pm", "midi", "matin"))
-
+        
         # Construction et affichage du graphique
         ggplot(data = data.ca, aes_string(x = "date", y = compareCol())) +
           geom_bar(stat = 'identity', aes(fill = period)) +
@@ -286,33 +296,60 @@ shinyServer(function(input, output, session) {
       
       # Construction de la table de fidélité (répartition prospects, clients fidèles et infidèles)
       fidelisation <- reactive({
-        
         # Recopiage de la table des transactions NAF en local
         tr <- df.n
-        
         # Structuration de l'ensemble des transactions
-        tr$date <- with(tr, as.IDate(x = date, format = "%d/%m/%Y"))
+        #         tr$date <- with(tr, as.IDate(x = date, format = "%d/%m/%Y"))
         tr$siret <- as.factor(tr$siret)
         
         # Récupération de la période de visualisation
-        periode <- getRangeDate()        
+        periode <- getRangeDate()
         tr <- tr[date %between% c(periode[1],periode[2])]
+        #         tr <- tr[date %between% c("2013-05-01","2013-05-06")]
         
         # Récupération des 'reliques' transactionnelles
         tr.c <- unique(tr,by=c("client","siret"))[j=list(client,siret)]
         
-        # On regroupe la table par client puis on test si le siret deu commerçant est présent dans au moins une des transactions du client
+        # On regroupe la table par client puis on test si le siret du commerçant est présent dans au moins une des transactions du client
         c.group <- group_by(tr.c, client)
-        autres <- filter(c.group, KEY$siret %in% siret)
         
-        # On compte le nombre d'occurrences pour chaque client. S'il est supérieur à un, c'est un infidèle
-        # fidelite[1] = TRUE : clients fidèles
-        # fidelite[2] = FALSE : clients infidèles
-        # fidelite[3] : prospects
-        fidelite <<- c(table(summarise(autres, n=n())$n==1))
+        # On garde les clients ayant effectué au moins une transaction chez le commerçant connecté
+        clients <- filter(c.group, KEY$siret %in% siret)
+        clients <- summarise(clients, n=n())
+        clients$fid <- numeric(length = nrow(clients))
+        
+        # On récupère les informations sur la fidélité des clients avant de supprimer la colonne
+        fidelite <<- c(table(clients$n==1))
+        
+        # On tag les clients selon qu'ils sont des clients fidèles ou infidèles avec la variable fid
+        # fid = 1 : clients fidèles
+        # fid = 2 : clients infidèles
+        for(i in 1:nrow(clients)) {
+          if(clients$n[i]==1) {
+            clients$fid[i]=1
+          }
+          else {clients$fid[i]=2}
+        }
+        
+        clients$n <- NULL
+        
+        # index.fidelite est la data table permettant de connaître le statut de fidélité des clients ayant effectué des achats durant la
+        # période de visualisation des données
+        # Pour mémo :
+        # fid = 1 : clients fidèles
+        # fid = 2 : clients infidèles
+        # fid = 0 : prospects
+        index.fidelite <- rbind.data.frame(data.frame(client = unique(c.group[!(client %in% clients$client)]$client),
+                                                      fid = numeric(length = length(unique(c.group[!(client %in% clients$client)]$client)))),
+                                           clients)
+        
+        # Notre data table pour la prospection est prête à l'emploi 
+        df.p <<- merge(tr, index.fidelite, by = "client")
+        
+        # On termine de construire la table de fidélité pour le camembert
         fidelite[3] <<- nrow(unique(tr,by=c("client")))-(sum(fidelite))
         fidelite <<- cbind(melt(fidelite), type = c("Infidèles","Fidèles","Prospects"))
-        fidelite
+        return(fidelite)
       })
       
       # Définitions des termes client infidèle, fidèle et prospect
@@ -324,7 +361,7 @@ shinyServer(function(input, output, session) {
                   tags$li(tags$b("Fidèle :"), tags$h6("Client consommant exclusivement dans votre commerce")))
         )
       })
-
+      
       # Renvoie la table fidelite lorsque la période de visualisation est modifiée (astuce pour rendre fidelite réactive)
       fidelite.up <- reactive({
         getRangeDate()
@@ -342,6 +379,145 @@ shinyServer(function(input, output, session) {
       
       ###################################################################################################################
       #                                          MODULE PROFIL DES CLIENTS                                              #
+      ###################################################################################################################
+      
+      # Description des camemberts de répartition des clients
+      output$repartitionClienteleCategories <- renderUI({
+        tagList(
+          tags$h5("Ci-dessous les graphiques donnant la répartition des clients fidèles et infidèles selon le sexe, l'âge, la catégorie
+                  socio-professionnelle (csp) et la situation familiale.")
+        )
+      })
+      
+      output$modalUIProfil <- renderUI({
+        bsModal("modProfil", "Profil des clients", trigger = "btnModalProfil",
+                tags$p("La table suivante établit les profils de consommation par ordre décroissant. Leur poids ainsi que le pourcentage cumulé est donné à titre indicatif."),
+                br(),
+                tags$div(class = "row-fluid",
+                         tags$div(class = "span12",
+                                  dataTableOutput("tableProfilsClients"))
+                )
+        )
+      })
+      
+      # Table des profils de consommation
+      output$tableProfilsClients <- renderDataTable({
+        #         feinterReactivite()
+        data.profil()
+      }, options = list(orderClasses = TRUE))
+      
+      # Fonction récupérant l'information clientèle selon les dates de visualisation
+      data.profil <- reactive({
+        rangeDate <- getRangeDate()
+        df.s$date <- as.IDate(df.s$date, format = "%d/%m/%Y")
+        df.profil <- subset(df.s, date %between% c(rangeDate[1],rangeDate[2]))
+        df.profil <- subset(df.profil, select = c("client","age","sexe","csp","situation"))
+        df.profil <- unique(df.profil) %>%
+          ddply(.(age,sexe,csp,situation), summarise, freq=length(age)) %>%
+          arrange(desc(freq))
+        df.profil$rec <- df.profil$freq / sum(df.profil$freq) * 100
+        df.profil$rec.cum <- cumsum(df.profil$rec)
+        df.profil
+      })
+      
+      # Titre du graphique 'Répartition de la clientèle selon le sexe'
+      output$clienteleSexeTitre <- renderUI({
+        tagList(tags$h4("Répartition selon le sexe"))
+      })
+      
+      # Graphique 'Répartition des clients selon le sexe'
+      output$graphiqueClienteleFidInfSexe <- renderPlot({
+        df.profil.sexe <- as.data.frame(data.profil() %>% group_by(sexe) %>% summarise(n = n()))
+        
+        ggplot(aes(x = 1, y = n, fill = sexe), data = df.profil.sexe) +
+          geom_bar(stat = "identity", width = 1, colour = "white") +
+          scale_fill_manual(values = c("M"="#0057e7", "F"="#d62d20"),
+                            breaks = c("M", "F"),
+                            labels = c(paste("Homme - ", round(df.profil.sexe[df.profil.sexe$sexe=="M",2]/sum(df.profil.sexe$n)*100), "%", sep = ""),
+                                       paste("Femme - ", round(df.profil.sexe[df.profil.sexe$sexe=="F",2]/sum(df.profil.sexe$n)*100), "%", sep = ""))) +
+          coord_polar(theta = "y") +
+          guides(fill=guide_legend(override.aes=list(colour=NA), nrow = 2)) +
+          theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
+                panel.background=element_blank(), panel.border=element_blank(), panel.grid=element_blank(),
+                legend.title=element_blank())
+      })
+      
+      # Titre du graphique 'Répartition de la clientèle selon l'âge'
+      output$clienteleAgeTitre <- renderUI({
+        tagList(tags$h4("Répartition selon l'âge"))
+      })
+      
+      # Graphique 'Répartition des clients selon l'âge'
+      output$graphiqueClienteleFidInfAge <- renderPlot({
+        df.profil.age <- data.profil()
+        df.profil.age <- data.frame(pallier = c("jeunes","adultes","senior","retraite"),
+                                    freq = c(as.numeric(table(df.profil.age$age %between% c(0,25))[2]),
+                                             as.numeric(table(df.profil.age$age %between% c(26,38))[2]),
+                                             as.numeric(table(df.profil.age$age %between% c(39,49))[2]),
+                                             as.numeric(table(df.profil.age$age %between% c(50,130))[2])))
+        
+        ggplot(aes(x = 1, y = freq, fill = pallier), data = df.profil.age) +
+          geom_bar(stat = "identity", width = 1, colour = "white") +
+          scale_fill_manual(values = c(jeunes="#008744",adultes="#0057e7",senior="#d62d20",retraite="#ffa700"),
+                            breaks = c("jeunes","adultes","senior","retraite"),
+                            labels = c("Moins de 25 ans","26-38 ans","39-50 ans","+50 ans")) +
+          coord_polar(theta = "y") +
+          guides(fill=guide_legend(override.aes=list(colour=NA), nrow = 2)) +
+          theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
+                panel.background=element_blank(), panel.border=element_blank(), panel.grid=element_blank(),
+                legend.title=element_blank())
+      })
+      
+      # Titre du graphique 'Répartition de la clientèle selon la csp'
+      output$clienteleCSPTitre <- renderUI({
+        tagList(tags$h4("Répartition selon la csp"))
+      })
+      
+      # Graphique 'Répartition des clients selon la csp'
+      output$graphiqueClienteleFidInfCSP <- renderPlot({
+        df.profil.csp <- as.data.frame(data.profil() %>% group_by(csp) %>% summarise(n = n()))
+        
+        ggplot(aes(x = 1, y = n, fill = csp), data = df.profil.csp) +
+          geom_bar(stat = "identity", width = 1, colour = "white") +
+          scale_fill_manual(values = c("#008744","#0057e7","#d62d20","#ffa700","#eeeeee","#433e90","#a19c9c","#6fcb9f"),
+                            breaks = c("AGRICULTEURS","ARTISANTS COMMERCANTS ET CHEFS D'ENTREPRISES","AUTRES SANS ACTIVITE PROF.","CADRES ET PROF INTELLECTUELLES",
+                                       "EMPLOYES","OUVRIERS","PROFESSIONS INTERMEDIAIRES","RETRAITES"),
+                            labels = c("Agriculteurs","Artisants, Commerçants \net Chefs d'Entreprises","Autres sans activité \nprofessionnelle","Cadres et \nProf. intellectuelles",
+                                       "Employés","Ouvriers","Professions \nintermédiaires","Retraités")) +
+          coord_polar(theta = "y") +
+          guides(fill = guide_legend(override.aes = list(colour = NA), nrow = 4)) +
+          theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
+                panel.background=element_blank(), panel.border=element_blank(), panel.grid=element_blank(),
+                legend.title=element_blank())
+      })
+      
+      # Titre du graphique 'Répartition de la clientèle selon la situation
+      output$clienteleSituationTitre <- renderUI({
+        tagList(tags$h4("Répartition selon la situation"))
+      })
+      
+      # Graphique 'Répartition des clients selon la situation'
+      output$graphiqueClienteleFidInfSituation <- renderPlot({
+        df.profil.situation <- as.data.frame(data.profil() %>% group_by(situation) %>% summarise(n = n()))
+        
+        ggplot(aes(x = 1, y = n, fill = situation), data = df.profil.situation) +
+          geom_bar(stat = "identity", width = 1, colour = "white") +
+          scale_fill_manual(values = c("#008744","#0057e7","#d62d20","#ffa700","#eeeeee","#433e90","#a19c9c","#6fcb9f"),
+                            breaks = c("CELIBATAIRE","CONCUBIN","DIVORCE","INIT","MARIE","PACSE","SEPARE","VEUF"),
+                            labels = c("Célibataire","Concubin","Divorcé","Init","Marié","Pacsé","Séparé","Veuf")) +
+          coord_polar(theta = "y") +
+          guides(fill=guide_legend(override.aes=list(colour=NA), nrow = 4)) +
+          theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
+                panel.background=element_blank(), panel.border=element_blank(), panel.grid=element_blank(),
+                legend.title=element_blank())
+      })
+      
+      ###################################################################################################################
+      #                                       FIN MODULE PROFIL DES CLIENTS                                             #
+      ###################################################################################################################
+      
+      ###################################################################################################################
+      #                                          MODULE PANIER DES CLIENTS                                              #
       ###################################################################################################################
       
       updateCritere <- function(){
@@ -406,37 +582,46 @@ shinyServer(function(input, output, session) {
         }
       }
       
+      output$panierTitre <- renderUI({
+        # Point d'entrée du module 'Panier de la clientèle'
+        panier()
+        tagList(tags$h4("Distribution journalière du panier des clients selon des critères"),
+                tags$h5(paste("(visualisation sur", nrow(df.panier), "transactions)"))
+        )
+      })
+      
       # Graphique ggvis
       ggvisPanier <- function(){
         df.panier %>%
           ggvis(x = ~montant) %>%
           layer_densities(adjust = input$bin)        
       } %>%
-        bind_shiny('panier-plot')
+        bind_shiny('graphiquePanier')
       
-      # Nombre de lignes de la table filtrée
-      output$nb <- renderUI({
-        
-        # Point d'entrée du module 'Panier de la clientèle'
-        panier()
-        tagList(tags$h4(paste("Visualisation sur", nrow(df.panier), "clients"))
-        )
-      })
+      #       # Nombre de lignes de la table filtrée
+      #       output$nb <- renderUI({
+      #         
+      #         # Point d'entrée du module 'Panier de la clientèle'
+      #         panier()
+      #         tagList(tags$h4(paste("Visualisation sur", nrow(df.panier), "clients"))
+      #         )
+      #       })
       
       # Fonction forçant l'apparition de la fenêtre 'modal' sans trigger
       fenetreModal <- function(){
-        toggleModal(session, "modAver")
+        toggleModal(session, "modPanier")
+        toggleModal(session, "modProfil")
       }
       
-      output$modalUI <- renderUI({
+      output$modalUIPanier <- renderUI({
         # On récupère en variable locales les critères de l'utilisateur
         # L'écrire en dur dans HTML(...) est buggé
         sexe <- input$sexe
         csp <- input$csp
         situation <- input$situation
         
-        bsModal("modAver", "Profil des clients", trigger = "btnModal",
-                tags$p("Ci-dessous le profil des clients ayant effectué une (ou plusieurs) transaction(s) le ",
+        bsModal("modPanier", "Profil des clients", trigger = "btnModalPanier",
+                tags$p("Ci-dessous la table référençant le profil des clients ayant effectué une (ou plusieurs) transaction(s) le ",
                        tags$strong(crit.panier$dateClients), "et correspondant aux critères suivants :",
                        tags$ul(
                          tags$li(HTML(paste("de sexe", ifelse(sexe=="M"|sexe=="F", paste(tags$strong(sexe)), paste(tags$strong("masculin"), "ou", tags$strong("féminin")))))),
@@ -456,8 +641,9 @@ shinyServer(function(input, output, session) {
       output$transactionsClientsPrecis <- renderDataTable({
         feinterReactivite()
         unique(subset(df.panier, select = c("age", "sexe", "csp", "situation", "villeclient")))
-      })
+      }, options = list(orderClasses = TRUE))
       
+      # Fonction forçant la mise à jour des tables visualisées à l'aide d'un bouton modal
       feinterReactivite <- reactive({
         date <- input$date.vis
         sexe <- input$sexe
@@ -505,22 +691,191 @@ shinyServer(function(input, output, session) {
       })
       
       ###################################################################################################################
-      #                                       FIN MODULE PROFIL DES CLIENTS                                             #
+      #                                       FIN MODULE PANIER DES CLIENTS                                             #
       ###################################################################################################################
       
+      ###################################################################################################################
+      #                                        DEBUT MODULE DE PROSPECTION                                              #
+      ###################################################################################################################
       
+      # Affichage du nombre de clients atteints par la prospection
+      output$prospectionObjectif <- renderUI({
+        # si la prospection n'a pas encore été lancé, on prévient le commerçant de la lancer
+        if(!exists("df.prospection")) {
+          tagList(tags$h1("0"), tags$h3("Clients potentiels"),
+                  tags$h3("Penser à visualiser la répartition de la fidélité des clients puis à lancer la prospection !")
+          )
+        } else {
+          # Affichage des résultats de la prospection
+          print(paste(length(df.prospection$dist==1), "longueuer de dist"))
+          tagList(tags$h1(nrow(df.prospection[df.prospection$dist==1,])), tags$h3("Clients potentiels"),
+                  tags$h1(ifelse(length(df.prospection$dist)!=0,paste(round(mean(df.prospection$panier),1), "€"),"0 €")), tags$h3("Panier moyen client"),
+                  tags$h1(paste(nrow(df.prospection[df.prospection$dist==1,])*floor(mean(df.prospection$panier)), "€")), tags$h3("Bénéfices potentiels*")
+          )
+        }
+      })
+      
+      # Affichage du nombre de prospects sur la période de visualisation
+      output$prospectionRecapitulatifClientele <- renderUI({
+        if(exists("fidelite")) {
+          fidelite <- fidelite.up()
+          tagList(div(tags$h2(fidelite[fidelite$type=="Prospects",1]), tags$h5("Prospects")),
+                  div(tags$h2(ifelse(fidelite[fidelite$type=="Infidèles",1]>0,fidelite[fidelite$type=="Infidèles",1],0)), tags$h5("Clients infidèles")),
+                  div(tags$h2(ifelse(fidelite[fidelite$type=="Fidèles",1]>0,fidelite[fidelite$type=="Fidèles",1],0)), tags$h5("Clients fidèles"))
+          )
+        }
+      })
+      
+      # Légende pour le choix des critères : Age
+      output$ageSelectInputProspectionTitre <- renderUI ({
+        tagList(tags$h3("Age"))
+      })
+      
+      # Légende pour le choix des critères : Situation familiale
+      output$situationSelectInputProspectionTitre <- renderUI ({
+        tagList(tags$h3("Situation"))
+      })
+      
+      # Légende pour le choix des critères : CSP
+      output$CSPSelectInputProspectionTitre <- renderUI ({
+        tagList(tags$h3("CSP"))
+      })      
+      
+      # Titre pour la section "Sélection de prospetion"
+      output$criteresProspectionTitre <- renderUI ({
+        tagList(tags$h2("Critères de prospection"))
+      })
+      
+      output$criteresProspectionDesc <- renderUI ({
+        # Récupération des variables de critères
+        sexe <- input$btnProspectionSexe
+        age <- input$btnProspectionAge
+        situation <- input$btnSituationProspection
+        csp <- input$btnCSPProspection
+        
+        # Construction de la chaîne de caractère pour la situation
+        situation.chaine <- listeCriteresProspection(situation)
+        
+        # Construction de la chaîne de caractère pour la CSP
+        csp.chaine <- listeCriteresProspection(csp)
+        
+        tagList(
+          tags$ul(
+            tags$li(HTML(paste("sexe", ifelse(length(sexe)==1, paste(tags$strong(sexe)), paste(tags$strong("masculin"), "et", tags$strong("féminin")))))),
+            tags$li(HTML(paste("âgés entre", tags$strong(age[1]), "et", tags$strong(age[2]), "ans"))),
+            tags$li(HTML(paste("situation", ifelse(length(situation)!=0, situation.chaine, paste(tags$strong("quelconque")))))),
+            tags$li(HTML(paste("CSP", ifelse(length(csp)!=0, csp.chaine, paste(tags$strong("quelconque"))))))
+          )
+        )
+      })
+      
+      # Fonction construisant la chaîne de caractères pour les critères situation familiale et CSP
+      listeCriteresProspection <- function(e) {
+        if(length(e)!=0) {
+          e.chaine <- ""
+          if(length(e)==1) {
+            e.chaine <- HTML(paste(e.chaine, tags$strong(e)))
+          } else {
+            for(i in 1:(length(e)-1)) {
+              e.chaine <- HTML(paste(e.chaine, tags$strong(e[i]), ", ", sep = ""))  
+            }
+            e.chaine <- HTML(paste(e.chaine, tags$strong(e[length(e)])))
+          }
+        }
+      }
+      
+      output$champActionProspectionTitre <- renderUI ({
+        tagList(tags$h2("Périmètre d'action prospection"))
+      })
+      
+      # Algorithme de prospection
+      prospection <- reactive({
+        # Est directement dépendant de l'action sur la bouton input$btnChampAction
+        # Lorsque btnChampAction est appuyé, toutes les fonctions ci-dessous sont exécutées
+        input$btnChampAction
+        print("action sur le bouton btnChampAction")
+        
+        # On isole la parallélisation du calcul de prospection afin qu'il ne soit exécuté uniquement lorsque le client le désire réellement 
+        isolate({
+          print("enter isolate")
+          
+          if(nrow(df.p)==0) {
+            return()
+          } else {
+            # On subset la table de prospection pour ne garder les choix du commerçant
+            df.prospection <- unique(df.p %>%
+                                       group_by(client) %>%
+                                       summarise(panier=mean(montant),
+                                                 date=max(date),
+                                                 age=age,
+                                                 sexe=sexe,
+                                                 csp=csp,
+                                                 situation=situation,
+                                                 villeclient=villeclient,
+                                                 libelle=libelle,
+                                                 reseau=reseau,
+                                                 paiement=paiement,
+                                                 retrait=retrait,
+                                                 typecompte=typecompte,
+                                                 Glat=Glat,
+                                                 Glon=Glon,
+                                                 fid=fid))
+            print(paste(nrow(df.prospection), "après unique"))
+            # On subset la data table contenant les clients à prospecter en fonction des critères du commerçant
+            # D'abord on subset par sexe et âge
+            df.prospection <- subset(df.prospection, sexe %in% input$btnProspectionSexe
+                                     & age %between% input$btnProspectionAge)
+            
+            print(paste(nrow(df.prospection), "après subset 1"))
+            
+            print(input$btnProspectionSexe)
+            print(input$btnProspectionAge)
+            print(input$btnSituationProspection)
+            print(input$btnCSPProspection)
+            
+            # La condition if empêche le subset dans le cas où le critère n'a pas été précisé
+            # Puis par situation
+            if(length(input$btnSituationProspection)!=0) {
+              df.prospection <- subset(df.prospection, situation %in% input$btnSituationProspection)
+            }
+            print(paste(nrow(df.prospection), "après subset 2"))
+            
+            # Enfin par csp
+            if(length(input$btnCSPProspection)!=0) {
+              df.prospection <- subset(df.prospection, csp %in% input$btnCSPProspection)
+            }
+            
+            print(paste(nrow(df.prospection), "après subset 3"))
+            
+            # Data table finale
+            # dist = 0 : n'est pas présent dans le champ d'action
+            # dist = 1 : est présent dans le champ d'action
+            
+            
+            ##### Attention : vérifier les missings values dans le if !!!
+            df.prospection <<- cbind(df.prospection,
+                                     # Variable catégorique donnant la présence ou non du client dans le champ d'action du commerçant                        
+                                     dist = foreach(line=iter(df.prospection,by='row'), .combine='c', .packages = c('parallel','doParallel','foreach')) %do% {
+                                       val <- acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon
+                                       if(!is.na(val)) {
+                                         ifelse(val<=input$champActionVal,1,0)
+                                       } else {return(0)}
+                                       # if(acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon <= 7) {
+                                       # return(1)
+                                       # } else {return(0)}
+                                     })
+            return(df.prospection)
+          }
+        })
+      })
+      
+      # Listener sur l'algorithme de prospection ci-desssus
+      prospection()
       
       ###################################################################################################################
-      #                                     OPTIMISER LE CALCUL DU BARYCENTRE                                           #
+      #                                          FIN MODULE DE PROSPECTION                                              #
       ###################################################################################################################
-      #       output$prospects <- renderDataTable({
-      #         barycentre(recapitulatif(commercants.table))
-      #         action(input$distance)
-      #       })
-      ###################################################################################################################
-      #                                                                                                                 #
-      ###################################################################################################################
-    
+      
     }
   })
 })

@@ -2,15 +2,16 @@
 ###### ui ######
 ################
 
-require(shiny)
+library(shiny)
 library(shinyBS)
 library(ggvis)
-require(leaflet)
-require(ggplot2)
-require(data.table)
-require(bit64)
-require(dplyr)
-require(reshape2)
+library(leaflet)
+library(ggplot2)
+library(data.table)
+library(bit64)
+library(plyr)
+library(dplyr)
+library(reshape2)
 
 shinyUI(navbarPage("OPAVaD", id = "opavad",
                    tabPanel("Activité",
@@ -63,73 +64,223 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                                                    )
                                                                  )
                                                         ),
-                                                        tabPanel("Fidélité de la clientèle", 
-                                                                 column(2,
-                                                                        # Répartitions des clients en terme de prospects, clients fidèles et clients infidèles
-                                                                        uiOutput("repartitionClientele")
+                                                        tabPanel("Fidélité de la clientèle",
+                                                                 fluidRow(
+                                                                   column(2,
+                                                                          # Répartitions des clients en terme de prospects, clients fidèles et clients infidèles
+                                                                          uiOutput("repartitionClientele")
+                                                                   ),
+                                                                   column(6,
+                                                                          fluidRow(id = "idclienteleTitre",
+                                                                                   # Titre du graphique 'Répartition de la clientèle'
+                                                                                   uiOutput("clienteleTitre")
+                                                                          ),
+                                                                          fluidRow(
+                                                                            # Graphique 'Répartition de la clientèle'
+                                                                            plotOutput("graphiqueClientele")
+                                                                          )
+                                                                   ),
+                                                                   column(4,
+                                                                          # Définition des notions utilisées
+                                                                          uiOutput("clienteleDefinition")
+                                                                   )
                                                                  ),
-                                                                 column(6,
-                                                                        fluidRow(id = "idclienteleTitre",
-                                                                                 # Titre du graphique 'Répartition de la clientèle'
-                                                                                 uiOutput("clienteleTitre")
-                                                                        ),
-                                                                        fluidRow(
-                                                                          # Graphique 'Répartition de la clientèle'
-                                                                          plotOutput("graphiqueClientele")
-                                                                        )
+                                                                 # Séparateur début description section sur la répartion des clients 
+                                                                 hr(),
+                                                                 fluidRow(id = "descriptionRepartitionClientele",
+                                                                          # Fenêtre 'modal' pour le profil des clients
+                                                                          uiOutput("modalUIProfil"),
+                                                                          # Texte introductif des graphiques sur la répartition
+                                                                          uiOutput("repartitionClienteleCategories"),
+                                                                          # Bouton mdal permettant de voir les profils de clients qui consomment le plus chez ce commerçant
+                                                                          bsButton("btnModalProfil", "Profils des clients", style = "primary")
                                                                  ),
-                                                                 column(4,
-                                                                        # Définition des notions utilisées
-                                                                        uiOutput("clienteleDefinition")
+                                                                 hr(),
+                                                                 # Séparateur fin description section sur la répartion des clients 
+                                                                 fluidRow(
+                                                                   column(6, 
+                                                                          id = "idclienteleSexeTitre",
+                                                                          # Titre du graphique 'Répartition de la clientèle selon le sexe'
+                                                                          uiOutput("clienteleSexeTitre"),
+                                                                          # Graphique donnant la répartition selon le sexe des clients fidèles et infidèles
+                                                                          plotOutput("graphiqueClienteleFidInfSexe")
+                                                                   ),
+                                                                   column(6,
+                                                                          id = "idclienteleAgeTitre",
+                                                                          # Titre du graphique 'Répartition de la clientèle selon l'âge'
+                                                                          uiOutput("clienteleAgeTitre"),
+                                                                          # Graphique donnant la répartition selon l'âge des clients fidèles et infidèles
+                                                                          plotOutput("graphiqueClienteleFidInfAge")
+                                                                   )
+                                                                 ),
+                                                                 fluidRow(
+                                                                   column(6,
+                                                                          id = "idclienteleCSPTitre",
+                                                                          # Titre du graphique 'Répartition de la clientèle selon la csp'
+                                                                          uiOutput("clienteleCSPTitre"),
+                                                                          # Graphique donnant la répartition selon la csp des clients fidèles et infidèles
+                                                                          plotOutput("graphiqueClienteleFidInfCSP")
+                                                                   ),
+                                                                   column(6,
+                                                                          id = "idclienteleSituationTitre",
+                                                                          # Titre du graphique 'Répartition de la clientèle selon la situation'
+                                                                          uiOutput("clienteleSituationTitre"),
+                                                                          # Graphique donnant la répartition selon la situation des clients fidèles et infidèles
+                                                                          plotOutput("graphiqueClienteleFidInfSituation")
+                                                                   )
                                                                  )
                                                         ),
                                                         tabPanel("Panier de la clientèle",
-                                                                 column(9,
-                                                                        ggvisOutput('panier-plot')
+                                                                 fluidRow(
+                                                                   column(9,
+                                                                          fluidRow(id = "idpanierTitre",
+                                                                                   # Titre du graphique 'Distribution du panier journalier'
+                                                                                   uiOutput("panierTitre")
+                                                                          ),
+                                                                          fluidRow(
+                                                                            # Graphique 'Distribution du panier journalier'
+                                                                            ggvisOutput("graphiquePanier")
+                                                                          )
+                                                                   ),
+                                                                   column(3,
+                                                                          # Fenêtre 'modal' pour le panier des clients dans 'Fidélité de la clientèle'
+                                                                          uiOutput("modalUIPanier"),
+                                                                          
+                                                                          # Ensemble des inputs encapsulés pour une réinitialisation ultérieure
+                                                                          uiOutput('resetable_input'),
+                                                                          
+                                                                          # Réglage de la précision de la distribution
+                                                                          sliderInput(inputId = "bin",
+                                                                                      label = "Ajustement de la précision",
+                                                                                      min = .1, max = 2, value = 1, step = .1),
+                                                                          
+                                                                          hr(),
+                                                                          
+                                                                          # Bouton affichant la table des transactions
+                                                                          bsButton("btnModalPanier", "Voir données", style = "primary"),
+                                                                          
+                                                                          br(),
+                                                                          
+                                                                          # Bouton servan à réinitialiser les variables 'input'
+                                                                          actionButton("reset_input", "Réinitialiser les critères")
+                                                                   )
                                                                  ),
-                                                                 column(3,
-                                                                        # Fenêtre 'modal'
-                                                                        uiOutput("modalUI"),
-                                                                        
-                                                                        # Ensemble des inputs encapsulés pour une réinitialisation ultérieure
-                                                                        uiOutput('resetable_input'),
-                                                                        
-                                                                        # Réglage de la précision de la distribution
-                                                                        sliderInput(inputId = "bin",
-                                                                                    label = "Ajustement de la précision",
-                                                                                    min = .1, max = 2, value = 1, step = .1),
-                                                                        
-                                                                        br(),
-                                                                        
-                                                                        # Bouton servan à réinitialiser les variables 'input'
-                                                                        actionButton("reset_input", "Reset inputs"),
-                                                                        
-                                                                        br(),
-                                                                        
-                                                                        # Bouton affichant la table des transactions
-                                                                        bsButton("btnModal", "Open Modal", style = "primary"),
-                                                                        
-                                                                        br(),
-                                                                        uiOutput('nb'))
+                                                                 fluidRow(
+                                                                   uiOutput('nb')
+                                                                 )
                                                         )
                                             )
                                      )
                             )
                    ),
-                   # TO DO
                    tabPanel("Prospection",
+                            # Image ajax loader
                             div(class = "busy", id = "loading",
                                 p("Affichage en cours..."),
-                                img(src="ajaxloader.gif")
+                                img(src = "ajaxloader.gif")
                             ),
+                            br(),
                             fluidRow(
-                              # Entré du score minimum
-                              numericInput("distance", label = h3("Champ d'action de la campagne (en km)"), min=0, value=10)
-                            ),
-                            hr(),
-                            fluidRow(
-                              dataTableOutput("prospects")
+                              # Colonne principale, contenant toutes les informations et éléments pour prospecter
+                              column(6,
+                                     offset = 2,
+                                     # Première ligne de choix pour la prospection
+                                     fluidRow(
+                                       # Choix du sexe
+                                       column(6,
+                                              fluidRow(
+                                                column(5,
+                                                       offset = 1,
+                                                       img(src = "boygirl.jpeg", id = "img-sexe", width = "120px", height = "120px")
+                                                ),
+                                                column(5,
+                                                       checkboxGroupInput("btnProspectionSexe", label = h3("Sexe"), 
+                                                                          choices = list("Homme" = "M", "Femme" = "F"),
+                                                                          selected = "M")
+                                                )
+                                              )
+                                       ),
+                                       # Choix de l'âge
+                                       column(6,
+                                              fluidRow(
+                                                img(src = "age.png", id = "img-age", width = "120px", height = "120px")
+                                              ),
+                                              fluidRow(
+                                                column(3,
+                                                       uiOutput("ageSelectInputProspectionTitre")
+                                                ),
+                                                column(9,
+                                                       sliderInput("btnProspectionAge", label = "", min = 0, 
+                                                                   max = 100, value = c(18, 25))
+                                                )
+                                              )
+                                       )
+                                     ),
+                                     br(),
+                                     br(),
+                                     # Ligne contennat les images pour la situation familiale et la CSP
+                                     fluidRow(
+                                       # Colonne avec l'image de la situation familiale
+                                       column(6,
+                                              img(src = "situation.gif", id = "img-situation", width = "120px", height = "120px")
+                                       ),
+                                       # Colonne avec l'image de la CSP
+                                       column(6,
+                                              img(src = "engrenage.png", id = "img-csp", width = "120px", height = "120px")
+                                       )
+                                     ),
+                                     # Ligne contenant les sélecteurs pour la situation familiale et la CSP
+                                     fluidRow(
+                                       # Sélecteur de la situation familiale
+                                       column(6,
+                                              column(3,
+                                                     uiOutput("situationSelectInputProspectionTitre")
+                                              ),
+                                              column(9,
+                                                     selectInput("btnSituationProspection",
+                                                                 label = "",
+                                                                 choices = c(Choisir = "", "CELIBATAIRE", "CONCUBIN", "DIVORCE", "INIT",
+                                                                             "MARIE", "PACSE", "SEPARE", "VEUF"),
+                                                                 multiple = TRUE, selectize = TRUE)
+                                              )
+                                       ),
+                                       # Sélecteur de la CSP
+                                       column(6,
+                                              column(3,
+                                                     uiOutput("CSPSelectInputProspectionTitre")      
+                                              ),
+                                              column(9,
+                                                     selectInput("btnCSPProspection",
+                                                                 label = "",
+                                                                 choices = c(Choisir = '', "AGRICULTEURS", "ARTISANTS COMMERCANTS ET CHEFS D'ENTREPRISES", "AUTRES SANS ACTIVITE PROF.",
+                                                                             "CADRES ET PROF INTELLECTUELLES", "EMPLOYES", "OUVRIERS", "PROFESSIONS INTERMEDIAIRES", "RETRAITES"),
+                                                                 multiple = TRUE, selectize = TRUE)
+                                              )
+                                       )
+                                     ),
+                                     hr(),
+                                     fluidRow(
+                                       uiOutput("criteresProspectionTitre"),
+                                       uiOutput("criteresProspectionDesc")
+                                     ),
+                                     hr(),
+                                     fluidRow(
+                                       uiOutput("champActionProspectionTitre"),
+                                       numericInput(inputId = "champActionVal", label = "", value = 5, min = 0, max = 100, step = 1), br(),
+                                       actionButton(inputId = "btnChampAction", label = "Lancer la prospection")
+                                       ),
+                                     hr()
+                              ),
+                              column(2,
+                                     # Résultat de la prospection
+                                     uiOutput("prospectionObjectif"),
+                                     # Séparateur
+                                     hr(),
+                                     # Chiffres récapitulatifs
+                                     uiOutput("prospectionRecapitulatifClientele")
+                              )
                             )
+                            
                    ),
                    # TO DO
                    tabPanel("A propos")

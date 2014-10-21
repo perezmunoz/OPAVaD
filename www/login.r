@@ -9,7 +9,7 @@ USER <- reactiveValues(Logged = Logged)
 output$uiLogin <- renderUI({
   if (USER$Logged == FALSE) {
     wellPanel(
-      textInput("userName", "Num\u00E9ro de Siret :", "44031024100029"),
+      textInput("userName", "Num\u00E9ro de Siret :", "47964299300022"),
       br(),
       actionButton("Login", "Connexion")
     )

@@ -72,10 +72,54 @@ body {
   display: none;
 }
 
-div#idcaTitre {
+div#idcaTitre, div#idclienteleTitre, div#idclienteleSexeTitre, div#idclienteleAgeTitre, div#idclienteleCSPTitre, div#idclienteleSituationTitre,
+div#idpanierTitre, div#prospectionRecapitulatifClientele, div#prospectionRecapitulatifProfilText, div#prospectionRecapitulatifClientele {
   text-align: center;
 }
 
-div#idclienteleTitre {
+button#btnModalPanier {
+  display: block;
+  position: relative;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+button#btnModalProfil {
+  display: block;
+  position: relative;
+  margin-left: auto;
+  margin-right: auto;
+  vertical-align: middle;
+}
+
+div#descriptionRepartitionClientele {
+  text-align: center;
+    display: block;
+    position: relative;
+    margin-left: auto;
+    margin-right: auto;
+  vertical-align: middle;
+}
+
+button#reset_input {
+  display: block;
+    position: relative;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+img#img-age, img#img-situation, img#img-csp {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+div#btnSituationProspection, div#btnCSPProspection {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+div#criteresProspectionTitre, div#champActionProspectionTitre, div#prospectionObjectif {
   text-align: center;
 }
