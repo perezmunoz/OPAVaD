@@ -114,12 +114,18 @@ img#img-age, img#img-situation, img#img-csp {
   margin-right: auto;
 }
 
-div#btnSituationProspection, div#btnCSPProspection {
+div#selectInputSituationProspection, div#selectInputCSPProspection {
   display: block;
   margin-left: auto;
   margin-right: auto;
 }
 
-div#criteresProspectionTitre, div#champActionProspectionTitre, div#prospectionObjectif {
+div#champActionProspectionTitre, div#prospectionObjectif {
   text-align: center;
+}
+
+button#actionButtonLancerProspection {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
 }

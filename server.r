@@ -4,6 +4,7 @@
 
 library(shiny)
 library(shinyBS)
+library(shinyIncubator)
 library(ggvis)
 library(leaflet)
 library(ggplot2)
@@ -55,8 +56,6 @@ shinyServer(function(input, output, session) {
       # Coordonnées géospatiales du commerçant transformées en radians (calcul de la prospection)
       latC <<- KEY$lat * pi/180
       lonC <<- KEY$lon * pi/180
-      
-      
       
       # Créaction d'un 'proxy' de la carte à l'aide duquel les cercles seront construits
       map <- createLeafletMap(session, 'map')
@@ -285,8 +284,13 @@ shinyServer(function(input, output, session) {
       
       # Graphique 'Répartition de la clientèle'
       output$graphiqueClientele <- renderPlot({
+        # Code JavaScript envoyé au serveur afin de modifier le fichier HTML généré.
+        # On passe ainsi de <html class> à <html class='shiny-busy'> et donc busy.js prend la relève
+        # L'utilisateur est donc prévenu de l'exécution des calculs en cours
+        session$sendCustomMessage(type='jsCode', list(value = "$('html').attr('class','shiny-busy');"))
+        
         ggplot(aes(x = 1, y = value, fill = type), data = fidelisation()) +
-          geom_bar(stat = 'identity', width = 1, colour = "black") +
+          geom_bar(stat = 'identity', width = 1, colour = "white") +
           coord_polar(theta = "y") +
           guides(fill=guide_legend(override.aes=list(colour=NA))) +
           theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
@@ -433,8 +437,8 @@ shinyServer(function(input, output, session) {
           geom_bar(stat = "identity", width = 1, colour = "white") +
           scale_fill_manual(values = c("M"="#0057e7", "F"="#d62d20"),
                             breaks = c("M", "F"),
-                            labels = c(paste("Homme - ", round(df.profil.sexe[df.profil.sexe$sexe=="M",2]/sum(df.profil.sexe$n)*100), "%", sep = ""),
-                                       paste("Femme - ", round(df.profil.sexe[df.profil.sexe$sexe=="F",2]/sum(df.profil.sexe$n)*100), "%", sep = ""))) +
+                            labels = c(paste(round(df.profil.sexe[df.profil.sexe$sexe=="M",2]/sum(df.profil.sexe$n)*100,1), "% - ", "Homme", sep = ""),
+                                       paste(round(df.profil.sexe[df.profil.sexe$sexe=="F",2]/sum(df.profil.sexe$n)*100,1), "% - ", "Femme", sep = ""))) +
           coord_polar(theta = "y") +
           guides(fill=guide_legend(override.aes=list(colour=NA), nrow = 2)) +
           theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
@@ -460,7 +464,10 @@ shinyServer(function(input, output, session) {
           geom_bar(stat = "identity", width = 1, colour = "white") +
           scale_fill_manual(values = c(jeunes="#008744",adultes="#0057e7",senior="#d62d20",retraite="#ffa700"),
                             breaks = c("jeunes","adultes","senior","retraite"),
-                            labels = c("Moins de 25 ans","26-38 ans","39-50 ans","+50 ans")) +
+                            labels = c(paste(round(df.profil.age$freq[1]/sum(df.profil.age$freq)*100,1), "% - ", "Moins de 25 ans", sep = ""),
+                                       paste(round(df.profil.age$freq[2]/sum(df.profil.age$freq)*100,1), "% - ", "26-38 ans", sep = ""),
+                                       paste(round(df.profil.age$freq[3]/sum(df.profil.age$freq)*100,1), "% - ", "39-50 ans", sep = ""),
+                                       paste(round(df.profil.age$freq[4]/sum(df.profil.age$freq)*100,1), "% - ", "+50 ans", sep = ""))) +
           coord_polar(theta = "y") +
           guides(fill=guide_legend(override.aes=list(colour=NA), nrow = 2)) +
           theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
@@ -482,8 +489,14 @@ shinyServer(function(input, output, session) {
           scale_fill_manual(values = c("#008744","#0057e7","#d62d20","#ffa700","#eeeeee","#433e90","#a19c9c","#6fcb9f"),
                             breaks = c("AGRICULTEURS","ARTISANTS COMMERCANTS ET CHEFS D'ENTREPRISES","AUTRES SANS ACTIVITE PROF.","CADRES ET PROF INTELLECTUELLES",
                                        "EMPLOYES","OUVRIERS","PROFESSIONS INTERMEDIAIRES","RETRAITES"),
-                            labels = c("Agriculteurs","Artisants, Commerçants \net Chefs d'Entreprises","Autres sans activité \nprofessionnelle","Cadres et \nProf. intellectuelles",
-                                       "Employés","Ouvriers","Professions \nintermédiaires","Retraités")) +
+                            labels = c(paste(round(df.profil.csp[df.profil.csp$csp=="AGRICULTEURS",]$n/sum(df.profil.csp$n)*100,1), "% - ", "Agriculteurs", sep = ""),
+                                       paste(round(df.profil.csp[df.profil.csp$csp=="ARTISANTS COMMERCANTS ET CHEFS D'ENTREPRISES",]$n/sum(df.profil.csp$n)*100,1), "% - ", "Artisants, Commerçants \net Chefs d'Entreprises", sep = ""),
+                                       paste(round(df.profil.csp[df.profil.csp$csp=="AUTRES SANS ACTIVITE PROF.",]$n/sum(df.profil.csp$n)*100,1), "% - ", "Autres sans activité \nprofessionnelle", sep = ""),
+                                       paste(round(df.profil.csp[df.profil.csp$csp=="CADRES ET PROF INTELLECTUELLES",]$n/sum(df.profil.csp$n)*100,1), "% - ", "Cadres et \nProf. intellectuelles", sep = ""),
+                                       paste(round(df.profil.csp[df.profil.csp$csp=="EMPLOYES",]$n/sum(df.profil.csp$n)*100,1), "% - ", "Employés", sep = ""),
+                                       paste(round(df.profil.csp[df.profil.csp$csp=="OUVRIERS",]$n/sum(df.profil.csp$n)*100,1), "% - ", "Ouvriers", sep = ""),
+                                       paste(round(df.profil.csp[df.profil.csp$csp=="PROFESSIONS INTERMEDIAIRES",]$n/sum(df.profil.csp$n)*100,1), "% - ", "Professions \nintermédiaires", sep = ""),
+                                       paste(round(df.profil.csp[df.profil.csp$csp=="RETRAITES",]$n/sum(df.profil.csp$n)*100,1), "% - ", "Retraités", sep = ""))) +
           coord_polar(theta = "y") +
           guides(fill = guide_legend(override.aes = list(colour = NA), nrow = 4)) +
           theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
@@ -504,7 +517,14 @@ shinyServer(function(input, output, session) {
           geom_bar(stat = "identity", width = 1, colour = "white") +
           scale_fill_manual(values = c("#008744","#0057e7","#d62d20","#ffa700","#eeeeee","#433e90","#a19c9c","#6fcb9f"),
                             breaks = c("CELIBATAIRE","CONCUBIN","DIVORCE","INIT","MARIE","PACSE","SEPARE","VEUF"),
-                            labels = c("Célibataire","Concubin","Divorcé","Init","Marié","Pacsé","Séparé","Veuf")) +
+                            labels = c(paste(round(df.profil.situation[df.profil.situation$situation=="CELIBATAIRE",]$n/sum(df.profil.situation$n)*100,1), "% - ", "Célibataire", sep = ""),
+                                       paste(round(df.profil.situation[df.profil.situation$situation=="CONCUBIN",]$n/sum(df.profil.situation$n)*100,1), "% - ", "Concubin", sep = ""),
+                                       paste(round(df.profil.situation[df.profil.situation$situation=="DIVORCE",]$n/sum(df.profil.situation$n)*100,1), "% - ", "Divorcé", sep = ""),
+                                       paste(round(df.profil.situation[df.profil.situation$situation=="INIT",]$n/sum(df.profil.situation$n)*100,1), "% - ", "Init", sep = ""),
+                                       paste(round(df.profil.situation[df.profil.situation$situation=="MARIE",]$n/sum(df.profil.situation$n)*100,1), "% - ", "Marié", sep = ""),
+                                       paste(round(df.profil.situation[df.profil.situation$situation=="PACSE",]$n/sum(df.profil.situation$n)*100,1), "% - ", "Pacsé", sep = ""),
+                                       paste(round(df.profil.situation[df.profil.situation$situation=="SEPARE",]$n/sum(df.profil.situation$n)*100,1), "% - ", "Séparé", sep = ""),
+                                       paste(round(df.profil.situation[df.profil.situation$situation=="VEUF",]$n/sum(df.profil.situation$n)*100,1), "% - ", "Veuf", sep = ""))) +
           coord_polar(theta = "y") +
           guides(fill=guide_legend(override.aes=list(colour=NA), nrow = 4)) +
           theme(legend.position = "bottom", axis.title=element_blank(), axis.text=element_blank(), axis.line=element_blank(), axis.ticks=element_blank(),
@@ -706,6 +726,7 @@ shinyServer(function(input, output, session) {
                   tags$h3("Penser à visualiser la répartition de la fidélité des clients puis à lancer la prospection !")
           )
         } else {
+          print("bip 7")
           # Affichage des résultats de la prospection
           print(paste(length(df.prospection$dist==1), "longueuer de dist"))
           tagList(tags$h1(nrow(df.prospection[df.prospection$dist==1,])), tags$h3("Clients potentiels"),
@@ -720,38 +741,18 @@ shinyServer(function(input, output, session) {
         if(exists("fidelite")) {
           fidelite <- fidelite.up()
           tagList(div(tags$h2(fidelite[fidelite$type=="Prospects",1]), tags$h5("Prospects")),
-                  div(tags$h2(ifelse(fidelite[fidelite$type=="Infidèles",1]>0,fidelite[fidelite$type=="Infidèles",1],0)), tags$h5("Clients infidèles")),
-                  div(tags$h2(ifelse(fidelite[fidelite$type=="Fidèles",1]>0,fidelite[fidelite$type=="Fidèles",1],0)), tags$h5("Clients fidèles"))
+                  div(tags$h2(ifelse(fidelite[fidelite$type=="Fidèles",1]>0,fidelite[fidelite$type=="Fidèles",1],0)), tags$h5("Clients fidèles")),
+                  div(tags$h2(ifelse(fidelite[fidelite$type=="Infidèles",1]>0,fidelite[fidelite$type=="Infidèles",1],0)), tags$h5("Clients infidèles"))
           )
         }
       })
       
-      # Légende pour le choix des critères : Age
-      output$ageSelectInputProspectionTitre <- renderUI ({
-        tagList(tags$h3("Age"))
-      })
-      
-      # Légende pour le choix des critères : Situation familiale
-      output$situationSelectInputProspectionTitre <- renderUI ({
-        tagList(tags$h3("Situation"))
-      })
-      
-      # Légende pour le choix des critères : CSP
-      output$CSPSelectInputProspectionTitre <- renderUI ({
-        tagList(tags$h3("CSP"))
-      })      
-      
-      # Titre pour la section "Sélection de prospetion"
-      output$criteresProspectionTitre <- renderUI ({
-        tagList(tags$h2("Critères de prospection"))
-      })
-      
       output$criteresProspectionDesc <- renderUI ({
         # Récupération des variables de critères
-        sexe <- input$btnProspectionSexe
-        age <- input$btnProspectionAge
-        situation <- input$btnSituationProspection
-        csp <- input$btnCSPProspection
+        sexe <- input$checkBoxProspectionSexe
+        age <- input$selectInputProspectionAge
+        situation <- input$selectInputSituationProspection
+        csp <- input$selectInputCSPProspection
         
         # Construction de la chaîne de caractère pour la situation
         situation.chaine <- listeCriteresProspection(situation)
@@ -760,12 +761,14 @@ shinyServer(function(input, output, session) {
         csp.chaine <- listeCriteresProspection(csp)
         
         tagList(
+          tags$h5("Ci-dessous le récapitulatif des critères des clients sur lequel porte la prospection :"),
           tags$ul(
-            tags$li(HTML(paste("sexe", ifelse(length(sexe)==1, paste(tags$strong(sexe)), paste(tags$strong("masculin"), "et", tags$strong("féminin")))))),
+            tags$li(HTML(paste("de sexe", ifelse(length(sexe)==2, paste(tags$strong("masculin"), "et", tags$strong("féminin")), paste(tags$strong(sexe)))))),
             tags$li(HTML(paste("âgés entre", tags$strong(age[1]), "et", tags$strong(age[2]), "ans"))),
-            tags$li(HTML(paste("situation", ifelse(length(situation)!=0, situation.chaine, paste(tags$strong("quelconque")))))),
-            tags$li(HTML(paste("CSP", ifelse(length(csp)!=0, csp.chaine, paste(tags$strong("quelconque"))))))
-          )
+            tags$li(HTML(paste("de situation familiale", ifelse(length(situation)!=0, situation.chaine, paste(tags$strong("quelconque")))))),
+            tags$li(HTML(paste("de CSP", ifelse(length(csp)!=0, csp.chaine, paste(tags$strong("quelconque"))))))
+          ),
+          HTML(paste("Par défaut, les", strong("clients fidèles"), "et les", strong("clients infidèles"), "sont prospectés. Cela reste paramétrable."))
         )
       })
       
@@ -790,9 +793,13 @@ shinyServer(function(input, output, session) {
       
       # Algorithme de prospection
       prospection <- reactive({
+        print("juste avant le sendCustomMessage")
+        # Trigger pour l'affichage du panneau "Calcul en cours..."
+        session$sendCustomMessage(type='jsCode', list(value = "$('html').attr('class','shiny-busy');"))
+        
         # Est directement dépendant de l'action sur la bouton input$btnChampAction
         # Lorsque btnChampAction est appuyé, toutes les fonctions ci-dessous sont exécutées
-        input$btnChampAction
+        input$actionButtonLancerProspection
         print("action sur le bouton btnChampAction")
         
         # On isole la parallélisation du calcul de prospection afin qu'il ne soit exécuté uniquement lorsque le client le désire réellement 
@@ -820,54 +827,109 @@ shinyServer(function(input, output, session) {
                                                  Glat=Glat,
                                                  Glon=Glon,
                                                  fid=fid))
-            print(paste(nrow(df.prospection), "après unique"))
+            
+            # Les filtres ne s'appliquent qu'aux prospects
+            # Si le commerçant décide de prospecter les clients fidèles et/ou infidèles alors ils ne sont pas comptabilisés
+            # Cas où il veut prospecter que les clients infidèles : alors les clients fidèles sont soumis aux mêmes filtres que les prospects
+            if(length(input$checkBoxFideliteProspection)!=0) {
+              df.prospection.fideles <- cbind(subset(df.prospection, fid %in% input$checkBoxFideliteProspection), dist = c(1))
+              df.prospection <- subset(df.prospection, !(fid %in% input$checkBoxFideliteProspection))
+            }
+            
+            print(paste(nrow(df.prospection), "après unique et de class", class(df.prospection)))
             # On subset la data table contenant les clients à prospecter en fonction des critères du commerçant
             # D'abord on subset par sexe et âge
-            df.prospection <- subset(df.prospection, sexe %in% input$btnProspectionSexe
-                                     & age %between% input$btnProspectionAge)
+            df.prospection <- subset(df.prospection, sexe %in% input$checkBoxProspectionSexe
+                                     & age %between% input$selectInputProspectionAge)
             
-            print(paste(nrow(df.prospection), "après subset 1"))
+            print(paste(nrow(df.prospection), "après subset 1 et de classe", class(df.prospection)))
             
-            print(input$btnProspectionSexe)
-            print(input$btnProspectionAge)
-            print(input$btnSituationProspection)
-            print(input$btnCSPProspection)
+            print(input$checkBoxProspectionSexe)
+            print(input$selectInputProspectionAge)
+            print(input$selectInputSituationProspection)
+            print(input$selectInputCSPProspection)
+            print(input$checkBoxFideliteProspection)
             
             # La condition if empêche le subset dans le cas où le critère n'a pas été précisé
             # Puis par situation
-            if(length(input$btnSituationProspection)!=0) {
-              df.prospection <- subset(df.prospection, situation %in% input$btnSituationProspection)
+            if(length(input$selectInputSituationProspection)!=0) {
+              df.prospection <- subset(df.prospection, situation %in% input$selectInputSituationProspection)
             }
-            print(paste(nrow(df.prospection), "après subset 2"))
+            print(paste(nrow(df.prospection), "après subset 2 et de classe", class(df.prospection)))
             
             # Enfin par csp
-            if(length(input$btnCSPProspection)!=0) {
-              df.prospection <- subset(df.prospection, csp %in% input$btnCSPProspection)
+            if(length(input$selectInputCSPProspection)!=0) {
+              df.prospection <- subset(df.prospection, csp %in% input$selectInputCSPProspection)
             }
             
-            print(paste(nrow(df.prospection), "après subset 3"))
+            print(paste(nrow(df.prospection), "après subset 3 et de classe", class(df.prospection)))
+            
+            # Pour mémo :
+            # fid = 1 : clients fidèles
+            # fid = 2 : clients infidèles
+            # fid = 0 : prospects
+            # Le vecteur input$checkBoxFideliteProspection contient les valeurs 1 et 2 selon le choix du commerçant
+            
+            # DEVIENT INUTILE CAR ON L'A TRAITE PLUS HAUT
+            #             if(length(input$checkBoxFideliteProspection)!=0) {
+            #               df.prospection <- subset(df.prospection, fid %in% input$checkBoxFideliteProspection | fid == 0)
+            #               # Si aucune case n'est cochée alors on ne garde que les prospects
+            #             } else {df.prospection <- subset(df.prospection, fid == 0)}
+            
+            print(paste(nrow(df.prospection), "après subset 4 et de classe", class(df.prospection)))
             
             # Data table finale
             # dist = 0 : n'est pas présent dans le champ d'action
             # dist = 1 : est présent dans le champ d'action
             
-            
-            ##### Attention : vérifier les missings values dans le if !!!
-            df.prospection <<- cbind(df.prospection,
-                                     # Variable catégorique donnant la présence ou non du client dans le champ d'action du commerçant                        
-                                     dist = foreach(line=iter(df.prospection,by='row'), .combine='c', .packages = c('parallel','doParallel','foreach')) %do% {
-                                       val <- acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon
-                                       if(!is.na(val)) {
-                                         ifelse(val<=input$champActionVal,1,0)
-                                       } else {return(0)}
-                                       # if(acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon <= 7) {
-                                       # return(1)
-                                       # } else {return(0)}
-                                     })
-            return(df.prospection)
+            # Condition if : le commerçant souhaite t-il prospecter nécessairement les clients fidèles et/ou infidèles ?
+            df.prospection <<- if(length(input$checkBoxFideliteProspection)!=0) {
+              print("bip 1")
+              # Si oui, la prospection porte t-elle EXCLUSIVEMENT sur ces clients ?
+              if(nrow(df.prospection)!=0) {
+                print("bip 2")
+                # Si df.prospection est non nul, alors les critères sont tels que la prospection est porte aussi sur des cliens de fid = 0
+                rbind.data.frame(
+                  # Résidu de prospection hors choix du commerçant sur les clients fidèles et infidèles
+                  distanceCompute(df.prospection),
+                  # Table contenant le choix du commerçant sur les clients fidèles et infidèles
+                  df.prospection.fideles
+                )
+              } else {
+                print("bip 3")
+                # Les critères sont tels qu'il n'y a pas de prospects
+                # On retourne seulement la table des fidèles/infidèles car nous savons qu'elle existe
+                df.prospection.fideles
+              }
+            } else {
+              print("bip 4")
+              # Si le commerçant souhaite prospecter tout le monde indifférement, clients fidèles/infidèles et prospects
+              if(nrow(df.prospection)!=0) {
+                print("bip 5")
+                # Si les critères font qu'il y a des prospects, alors on l'envoi dans distanceCompute
+                distanceCompute(df.prospection)
+              }
+            }
+            print("bip 6")
           }
         })
       })
+      
+      distanceCompute <- function(df) {
+        cbind(df,
+              # Variable catégorique donnant la présence ou non du client dans le champ d'action du commerçant                        
+              dist = foreach(line = iter(df, by = 'row'), .combine = 'c', .packages = c('parallel','doParallel','foreach')) %do% {
+                val <- acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon
+                if(!is.na(val)) {
+                  ifelse(val <= input$numericInputChampAction, 1, 0)
+                } else {
+                  print(line)
+                  return(0)}
+                # if(acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon <= 7) {
+                # return(1)
+                # } else {return(0)}
+              })
+      }
       
       # Listener sur l'algorithme de prospection ci-desssus
       prospection()

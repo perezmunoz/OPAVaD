@@ -17,8 +17,16 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                    tabPanel("Activité",
                             # Scripts de style et gérant l'apparition du loader ajax
                             tags$head(tags$link(rel = 'stylesheet', type = 'text/css', href = 'styles.css'),
+                                      tags$link(rel="stylesheet", href="//maxcdn.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.min.css"),
                                       tags$script(src="nav.js"),
-                                      tags$script(type="text/javascript", src = "busy.js")
+                                      tags$script(type="text/javascript", src = "busy.js"),
+                                      # Script permettant d'envoyer directement du code JavaScript depuis R au client
+                                      tags$script(HTML('Shiny.addCustomMessageHandler("jsCode",
+                                                          function(message) {
+                                                            eval(message.value);
+                                                          }
+                                                          );
+                                                        '))
                             ),
                             # Image ajax loader
                             div(class = "busy", id = "loading",
@@ -194,7 +202,7 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                                        img(src = "boygirl.jpeg", id = "img-sexe", width = "120px", height = "120px")
                                                 ),
                                                 column(5,
-                                                       checkboxGroupInput("btnProspectionSexe", label = h3("Sexe"), 
+                                                       checkboxGroupInput("checkBoxProspectionSexe", label = h4("Sexe"), 
                                                                           choices = list("Homme" = "M", "Femme" = "F"),
                                                                           selected = "M")
                                                 )
@@ -207,10 +215,10 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                               ),
                                               fluidRow(
                                                 column(3,
-                                                       uiOutput("ageSelectInputProspectionTitre")
+                                                       h4("Age")
                                                 ),
                                                 column(9,
-                                                       sliderInput("btnProspectionAge", label = "", min = 0, 
+                                                       sliderInput("selectInputProspectionAge", label = "", min = 0, 
                                                                    max = 100, value = c(18, 25))
                                                 )
                                               )
@@ -234,10 +242,10 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                        # Sélecteur de la situation familiale
                                        column(6,
                                               column(3,
-                                                     uiOutput("situationSelectInputProspectionTitre")
+                                                     h4("Situation")
                                               ),
                                               column(9,
-                                                     selectInput("btnSituationProspection",
+                                                     selectInput("selectInputSituationProspection",
                                                                  label = "",
                                                                  choices = c(Choisir = "", "CELIBATAIRE", "CONCUBIN", "DIVORCE", "INIT",
                                                                              "MARIE", "PACSE", "SEPARE", "VEUF"),
@@ -247,10 +255,10 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                        # Sélecteur de la CSP
                                        column(6,
                                               column(3,
-                                                     uiOutput("CSPSelectInputProspectionTitre")      
+                                                     h4("CSP")
                                               ),
                                               column(9,
-                                                     selectInput("btnCSPProspection",
+                                                     selectInput("selectInputCSPProspection",
                                                                  label = "",
                                                                  choices = c(Choisir = '', "AGRICULTEURS", "ARTISANTS COMMERCANTS ET CHEFS D'ENTREPRISES", "AUTRES SANS ACTIVITE PROF.",
                                                                              "CADRES ET PROF INTELLECTUELLES", "EMPLOYES", "OUVRIERS", "PROFESSIONS INTERMEDIAIRES", "RETRAITES"),
@@ -260,16 +268,25 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                      ),
                                      hr(),
                                      fluidRow(
-                                       uiOutput("criteresProspectionTitre"),
-                                       uiOutput("criteresProspectionDesc")
+                                       column(6,
+                                              h4("Critères", style="text-align:center;"),
+                                              uiOutput("criteresProspectionDesc")
+                                       ),
+                                       column(6,
+                                              numericInput(inputId = "numericInputChampAction", label = h4("Dans un périmètre de (km)"), value = 5, min = 0, step = 1),
+                                              # Pour mémo :
+                                              # fid = 1 : clients fidèles
+                                              # fid = 2 : clients infidèles
+                                              checkboxGroupInput("checkBoxFideliteProspection", label = h4("Considérer a priori les clients fidèles/infidèles comme des prospects ?"), 
+                                                                 choices = list("Clients fidèles" = "1", "Clients infidèles" = "2"),
+                                                                 selected = c("1", "2"))
+                                       )
                                      ),
                                      hr(),
                                      fluidRow(
-                                       uiOutput("champActionProspectionTitre"),
-                                       numericInput(inputId = "champActionVal", label = "", value = 5, min = 0, max = 100, step = 1), br(),
-                                       actionButton(inputId = "btnChampAction", label = "Lancer la prospection")
-                                       ),
-                                     hr()
+                                       h4("Lancer la prospection", style="text-align:center;"),
+                                       actionButton(inputId = "actionButtonLancerProspection", label = "", icon = icon("pie-chart", "fa-3x", lib = "font-awesome"))
+                                     )
                               ),
                               column(2,
                                      # Résultat de la prospection
