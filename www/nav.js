@@ -8,8 +8,8 @@ $(document).ready(function(){
   });
 //document.getElementById('opavad').parentNode.parentNode.parentNode.style.display = 'block';
 });
-*/
 
+// Schéma de l'algorithme : NOT WORKING
 // on.click
   // if (USER$Logged est TRUE)
     // Si oui
@@ -43,7 +43,7 @@ $(document).ready(function(){
   });
 });
 
-/*
+
 function checkConnexion(){
       if(window.connexion == false){
         // Si la connexion n'est pas validée on ne fait rien. R se charge d'afficher à l'écran un message d'erreur
@@ -51,8 +51,7 @@ function checkConnexion(){
         return;
       }
 }
-*/
-/*
+
 $(document).ready(function(){
   $('body').on('click','#Login', function(){
     // On appel la fonction bloquant l'exécution sur le test de la variable connexion
@@ -94,8 +93,7 @@ function checkConnexion(){
   $("#opavad").parentsUntil('.navbar').parent().show();
   $("#graphique-tab").show();
 }
-*/
-/*
+
 $(document).ready(function(){
   $('body').on('click','#Login', function(){
     function checkConnexion(){
@@ -113,5 +111,3 @@ $(document).ready(function(){
   });
 });
 */
-
-

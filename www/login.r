@@ -4,7 +4,6 @@
 
 # Variable réactive nécessaire à la transition de l'interface de connexion et l'interface mon fond de commerce
 USER <- reactiveValues(Logged = Logged)
-# session$sendCustomMessage(type='jsCode', list(value = "var connexion = false;"))
 
 # Interface de connexion
 output$uiLogin <- renderUI({
@@ -27,16 +26,12 @@ output$pass <- renderText({
         })
         if(nrow(KEY) != 0) {
           if (KEY$ca == 'O') {
-#             session$sendCustomMessage(type='jsCode', list(value = "connexion = true;"))
-            session$sendCustomMessage(type='jsCode', list(value = "window.connexion = true;"))
             USER$Logged <- TRUE
             "Connexion validée"
           } else  {
-            print("toto1")
             "Num\u00E9ro de Siret incorrecte !"
           }
         } else {
-          print("toto2")
           "Num\u00E9ro de Siret incorrecte !"
         }
       }

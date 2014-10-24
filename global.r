@@ -34,6 +34,10 @@ index$siret <- as.character(index$siret)
 df.panier <- data.frame()
 crit.panier <- data.frame()
 
+# Initialisation de la data.table df.p pour permettre le lancement
+# Cette table est par la suite override
+df.p <- data.table()
+
 # Attributs des data tables df.s et df.n
 var.n <- c('montant','date','heure','siret','rs','naf','villecom','lon','lat','affilie','client','age','sexe','csp','optel','opmail','mail',
            'enfant','situation','anciennete','segment','score','avoir','appinternet','appmobile','villeclient','uu','carte','libelle','reseau',
@@ -72,7 +76,3 @@ rayon = 6378.137
 
 ## On enregistre le cluster dans le 'parallel backend' afin qu'il puisse être utilisé à traver foreach(...) %dopar% ...
 # registerDoParallel(cl = cluster.ca, cores=detectCores())
-
-# Initialisation de la data.table df.p pour permettre le lancement
-# Cette table est par la suite override
-df.p <- data.table()

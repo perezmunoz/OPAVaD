@@ -197,6 +197,10 @@ shinyServer(function(input, output, session) {
         })
       })
       
+      ###################################################################################################################
+      #                                          DEBUT MODULE CA JOURNALIER                                             #
+      ###################################################################################################################
+      
       # Titre du graphique "Distribution du chiffre d'affaire selon la période de la journée"
       output$caTitre <- renderUI({
         tagList(tags$h4("Distribution du chiffre d'affaire selon la période de la journée"))
@@ -281,6 +285,14 @@ shinyServer(function(input, output, session) {
           )
         )
       })
+      
+      ###################################################################################################################
+      #                                           FIN MODULE CA JOURNALIER                                              #
+      ###################################################################################################################
+      
+      ###################################################################################################################
+      #                                        DEBUT MODULE PROFIL DES CLIENTS                                          #
+      ###################################################################################################################
       
       # Titre du graphique 'Répartition de la clientèle'
       output$clienteleTitre <- renderUI({
@@ -385,10 +397,6 @@ shinyServer(function(input, output, session) {
                 div(tags$h2(ifelse(fidelite[fidelite$type=="Fidèles",1]>0,fidelite[fidelite$type=="Fidèles",1],0)), tags$h5("Clients fidèles"))
         )
       })
-      
-      ###################################################################################################################
-      #                                          MODULE PROFIL DES CLIENTS                                              #
-      ###################################################################################################################
       
       # Description des camemberts de répartition des clients
       output$repartitionClienteleCategories <- renderUI({
@@ -542,7 +550,7 @@ shinyServer(function(input, output, session) {
       ###################################################################################################################
       
       ###################################################################################################################
-      #                                          MODULE PANIER DES CLIENTS                                              #
+      #                                      DEBUT MODULE PANIER DES CLIENTS                                            #
       ###################################################################################################################
       
       updateCritere <- function(){
@@ -565,6 +573,24 @@ shinyServer(function(input, output, session) {
                                       "MARIE", "PACSE", "SEPARE", "VEUF"),
                           selected = crit.panier$situationClients)
       }
+      # Fonction récupérant la valeur de l'input sexe. Evite message d'erreur visible par l'utilisateur
+      getInputSexe <- function() {
+        if(is.null(input$sexe)) {
+          return("")
+        } else {return(input$sexe)}
+      }
+      # Fonction récupérant la valeur de l'input csp. Evite message d'erreur visible par l'utilisateur
+      getInputCSP <- function() {
+        if(is.null(input$csp)) {
+          return("")
+        } else {return(input$csp)}
+      }
+      # Fonction récupérant la valeur de l'input situation. Evite message d'erreur visible par l'utilisateur
+      getInputSituation <- function() {
+        if(is.null(input$situation)) {
+          return("")
+        } else {return(input$situation)}
+      }
       
       panier <- reactive({
         
@@ -579,14 +605,15 @@ shinyServer(function(input, output, session) {
         df.new <- subset(df.a, date == input$date.vis & montant > 0)
         
         # On filtre les données
-        if(input$sexe!="") {
+        inputSexe <- getInputSexe()
+        if(inputSexe!="") {
           df.new <- subset(df.new, sexe == input$sexe)
         }
-        
-        if(input$csp!="")
+        inputCSP <- getInputCSP()
+        if(inputCSP!="")
           df.new <- subset(df.new, csp == input$csp)
-        
-        if(input$situation!="")
+        inputSituation <- getInputSituation()
+        if(inputSituation!="")
           df.new <- subset(df.new, situation == input$situation)
         
         # Enfin on filtre selon l'âge
@@ -726,12 +753,10 @@ shinyServer(function(input, output, session) {
                     tags$h3("Penser à visualiser la répartition de la fidélité des clients puis à lancer la prospection !")
             )
           } else {
-            print("bip 7")
             # Affichage des résultats de la prospection
-            print(paste(length(df.prospection$dist==1), "longueuer de dist"))
             tagList(tags$h1(nrow(df.prospection[df.prospection$dist==1,])), tags$h3("Clients potentiels"),
                     tags$h1(ifelse(length(df.prospection$dist)!=0,paste(round(mean(df.prospection$panier),1), "€"),"0 €")), tags$h3("Panier moyen client"),
-                    tags$h1(paste(nrow(df.prospection[df.prospection$dist==1,])*floor(mean(df.prospection$panier)), "€")), tags$h3("Bénéfices potentiels*")
+                    tags$h1(ifelse(length(df.prospection$dist)!=0,paste(nrow(df.prospection[df.prospection$dist==1,])*floor(mean(df.prospection$panier)), "€"), "0 €")), tags$h3("Bénéfices potentiels*")
             )
           }
         })
@@ -791,26 +816,19 @@ shinyServer(function(input, output, session) {
           tagList(tags$h2("Périmètre d'action prospection"))
         })
         
-        # Observateur pour la prospection. Empêche que l'appui sur le bouton déclenchant la prospectipon exécutes à nouveau tout le code
-        #       observe({
-        
         # Algorithme de prospection
         prospection <- reactive({
           
           # browser()()
           
-          print("juste avant le sendCustomMessage")
           # Trigger pour l'affichage du panneau "Calcul en cours..."
           session$sendCustomMessage(type='jsCode', list(value = "$('html').attr('class','shiny-busy');"))
           
           # Est directement dépendant de l'action sur la bouton input$btnChampAction
           # Lorsque btnChampAction est appuyé, toutes les fonctions ci-dessous sont exécutées
           input$actionButtonLancerProspection
-          print("action sur le bouton btnChampAction")
           
           # On isole la parallélisation du calcul de prospection afin qu'il ne soit exécuté uniquement lorsque le client le désire réellement 
-          print("enter isolate")
-          
           isolate({
             
             if(nrow(df.p)==0) {
@@ -843,33 +861,21 @@ shinyServer(function(input, output, session) {
                 df.prospection <- subset(df.prospection, !(fid %in% input$checkBoxFideliteProspection))
               }
               
-              print(paste(nrow(df.prospection), "après unique et de class", class(df.prospection)))
               # On subset la data table contenant les clients à prospecter en fonction des critères du commerçant
               # D'abord on subset par sexe et âge
               df.prospection <- subset(df.prospection, sexe %in% input$checkBoxProspectionSexe
                                        & age %between% input$selectInputProspectionAge)
-              
-              print(paste(nrow(df.prospection), "après subset 1 et de classe", class(df.prospection)))
-              
-              print(input$checkBoxProspectionSexe)
-              print(input$selectInputProspectionAge)
-              print(input$selectInputSituationProspection)
-              print(input$selectInputCSPProspection)
-              print(input$checkBoxFideliteProspection)
               
               # La condition if empêche le subset dans le cas où le critère n'a pas été précisé
               # Puis par situation
               if(length(input$selectInputSituationProspection)!=0) {
                 df.prospection <- subset(df.prospection, situation %in% input$selectInputSituationProspection)
               }
-              print(paste(nrow(df.prospection), "après subset 2 et de classe", class(df.prospection)))
               
               # Enfin par csp
               if(length(input$selectInputCSPProspection)!=0) {
                 df.prospection <- subset(df.prospection, csp %in% input$selectInputCSPProspection)
               }
-              
-              print(paste(nrow(df.prospection), "après subset 3 et de classe", class(df.prospection)))
               
               # Pour mémo :
               # fid = 1 : clients fidèles
@@ -877,24 +883,14 @@ shinyServer(function(input, output, session) {
               # fid = 0 : prospects
               # Le vecteur input$checkBoxFideliteProspection contient les valeurs 1 et 2 selon le choix du commerçant
               
-              # DEVIENT INUTILE CAR ON L'A TRAITE PLUS HAUT
-              #             if(length(input$checkBoxFideliteProspection)!=0) {
-              #               df.prospection <- subset(df.prospection, fid %in% input$checkBoxFideliteProspection | fid == 0)
-              #               # Si aucune case n'est cochée alors on ne garde que les prospects
-              #             } else {df.prospection <- subset(df.prospection, fid == 0)}
-              
-              print(paste(nrow(df.prospection), "après subset 4 et de classe", class(df.prospection)))
-              
               # Data table finale
               # dist = 0 : n'est pas présent dans le champ d'action
               # dist = 1 : est présent dans le champ d'action
               
               # Condition if : le commerçant souhaite t-il prospecter nécessairement les clients fidèles et/ou infidèles ?
               df.prospection <<- if(length(input$checkBoxFideliteProspection)!=0) {
-                print("bip 1")
                 # Si oui, la prospection porte t-elle EXCLUSIVEMENT sur ces clients ?
                 if(nrow(df.prospection)!=0) {
-                  print("bip 2")
                   # Si df.prospection est non nul, alors les critères sont tels que la prospection est porte aussi sur des cliens de fid = 0
                   rbind.data.frame(
                     # Résidu de prospection hors choix du commerçant sur les clients fidèles et infidèles
@@ -903,21 +899,17 @@ shinyServer(function(input, output, session) {
                     df.prospection.fideles
                   )
                 } else {
-                  print("bip 3")
                   # Les critères sont tels qu'il n'y a pas de prospects
                   # On retourne seulement la table des fidèles/infidèles car nous savons qu'elle existe
                   df.prospection.fideles
                 }
               } else {
-                print("bip 4")
                 # Si le commerçant souhaite prospecter tout le monde indifférement, clients fidèles/infidèles et prospects
                 if(nrow(df.prospection)!=0) {
-                  print("bip 5")
                   # Si les critères font qu'il y a des prospects, alors on l'envoi dans distanceCompute
                   distanceCompute(df.prospection)
                 }
               }
-              print("bip 6")
             }
             # Fin de l'isolement : supprime la dépendance de input$numericInputChampAction
           })
@@ -932,10 +924,8 @@ shinyServer(function(input, output, session) {
                     ifelse(val <= input$numericInputChampAction, 1, 0)
                   } else {
                     print(line)
-                    return(0)}
-                  # if(acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon <= 7) {
-                  # return(1)
-                  # } else {return(0)}
+                    return(0)
+                  }
                 })
         }
         
@@ -946,7 +936,6 @@ shinyServer(function(input, output, session) {
       ###################################################################################################################
       #                                          FIN MODULE DE PROSPECTION                                              #
       ###################################################################################################################
-      
     }
   })
 })

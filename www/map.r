@@ -26,10 +26,6 @@ output$panneauCarte <- renderUI({
                   tags$h3(KEY$rs),
                   tags$strong("Siret : "), sprintf("%s", KEY$siret), tags$br(),
                   tags$strong("NAF : "), sprintf("%s", KEY$naf), tags$br(),
-                  #                   tags$strong("Chiffre d'affaires :"), sprintf("%s", com$montant), HTML("\u20AC"), tags$br(),
-                  #                   tags$strong("Transactions : "), sprintf("%s", com$transaction), tags$br(),
-                  #                   tags$strong("Latitude : "), sprintf("%s", com$latitude), tags$br(),
-                  #                   tags$strong("Longitude : "), sprintf("%s", com$longitude), tags$br(),
                   tags$strong("Latitude : "), sprintf("%s", KEY$lat), tags$br(),
                   tags$strong("Longitude : "), sprintf("%s", KEY$lon), tags$br()
                 ))
