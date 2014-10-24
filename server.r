@@ -4,7 +4,6 @@
 
 library(shiny)
 library(shinyBS)
-library(shinyIncubator)
 library(ggvis)
 library(leaflet)
 library(ggplot2)
@@ -20,11 +19,13 @@ library(foreach)
 Logged = FALSE;
 
 shinyServer(function(input, output, session) {
-  
+
   # Appel de l'interface de connexion
   source('www/login.r',  local = TRUE)
   
+  # Observateur lisant l'intégralité du code lors de l'appui sur le bouton de connexion
   observe({
+    
     # Encapsuleur donnant accès à l'application sous condition que la connexion soit validée
     if (USER$Logged == TRUE) {
       
@@ -251,6 +252,10 @@ shinyServer(function(input, output, session) {
         
         # Modification de la structure pour compatibilité avec la construction du graphique
         data.ca$period <- factor(data.ca$period, c("soir", "pm", "midi", "matin"))
+
+        # Construction de la table de navigation principale et secondaire (petits onglets)
+        session$sendCustomMessage(type='jsCode', list(value = "$('#opavad').parentsUntil('.navbar').parent().show();"))
+        session$sendCustomMessage(type='jsCode', list(value = "$('#graphique-tab').show();"))
         
         # Construction et affichage du graphique
         ggplot(data = data.ca, aes_string(x = "date", y = compareCol())) +
@@ -618,14 +623,6 @@ shinyServer(function(input, output, session) {
       } %>%
         bind_shiny('graphiquePanier')
       
-      #       # Nombre de lignes de la table filtrée
-      #       output$nb <- renderUI({
-      #         
-      #         # Point d'entrée du module 'Panier de la clientèle'
-      #         panier()
-      #         tagList(tags$h4(paste("Visualisation sur", nrow(df.panier), "clients"))
-      #         )
-      #       })
       
       # Fonction forçant l'apparition de la fenêtre 'modal' sans trigger
       fenetreModal <- function(){
@@ -718,222 +715,234 @@ shinyServer(function(input, output, session) {
       #                                        DEBUT MODULE DE PROSPECTION                                              #
       ###################################################################################################################
       
-      # Affichage du nombre de clients atteints par la prospection
-      output$prospectionObjectif <- renderUI({
-        # si la prospection n'a pas encore été lancé, on prévient le commerçant de la lancer
-        if(!exists("df.prospection")) {
-          tagList(tags$h1("0"), tags$h3("Clients potentiels"),
-                  tags$h3("Penser à visualiser la répartition de la fidélité des clients puis à lancer la prospection !")
-          )
-        } else {
-          print("bip 7")
-          # Affichage des résultats de la prospection
-          print(paste(length(df.prospection$dist==1), "longueuer de dist"))
-          tagList(tags$h1(nrow(df.prospection[df.prospection$dist==1,])), tags$h3("Clients potentiels"),
-                  tags$h1(ifelse(length(df.prospection$dist)!=0,paste(round(mean(df.prospection$panier),1), "€"),"0 €")), tags$h3("Panier moyen client"),
-                  tags$h1(paste(nrow(df.prospection[df.prospection$dist==1,])*floor(mean(df.prospection$panier)), "€")), tags$h3("Bénéfices potentiels*")
-          )
-        }
-      })
-      
-      # Affichage du nombre de prospects sur la période de visualisation
-      output$prospectionRecapitulatifClientele <- renderUI({
-        if(exists("fidelite")) {
-          fidelite <- fidelite.up()
-          tagList(div(tags$h2(fidelite[fidelite$type=="Prospects",1]), tags$h5("Prospects")),
-                  div(tags$h2(ifelse(fidelite[fidelite$type=="Fidèles",1]>0,fidelite[fidelite$type=="Fidèles",1],0)), tags$h5("Clients fidèles")),
-                  div(tags$h2(ifelse(fidelite[fidelite$type=="Infidèles",1]>0,fidelite[fidelite$type=="Infidèles",1],0)), tags$h5("Clients infidèles"))
-          )
-        }
-      })
-      
-      output$criteresProspectionDesc <- renderUI ({
-        # Récupération des variables de critères
-        sexe <- input$checkBoxProspectionSexe
-        age <- input$selectInputProspectionAge
-        situation <- input$selectInputSituationProspection
-        csp <- input$selectInputCSPProspection
+      # Observateur pour la prospection : isole le bouton de lancement de la prospection (évite de charger les tables à nouveau)
+      observe({
         
-        # Construction de la chaîne de caractère pour la situation
-        situation.chaine <- listeCriteresProspection(situation)
-        
-        # Construction de la chaîne de caractère pour la CSP
-        csp.chaine <- listeCriteresProspection(csp)
-        
-        tagList(
-          tags$h5("Ci-dessous le récapitulatif des critères des clients sur lequel porte la prospection :"),
-          tags$ul(
-            tags$li(HTML(paste("de sexe", ifelse(length(sexe)==2, paste(tags$strong("masculin"), "et", tags$strong("féminin")), paste(tags$strong(sexe)))))),
-            tags$li(HTML(paste("âgés entre", tags$strong(age[1]), "et", tags$strong(age[2]), "ans"))),
-            tags$li(HTML(paste("de situation familiale", ifelse(length(situation)!=0, situation.chaine, paste(tags$strong("quelconque")))))),
-            tags$li(HTML(paste("de CSP", ifelse(length(csp)!=0, csp.chaine, paste(tags$strong("quelconque"))))))
-          ),
-          HTML(paste("Par défaut, les", strong("clients fidèles"), "et les", strong("clients infidèles"), "sont prospectés. Cela reste paramétrable."))
-        )
-      })
-      
-      # Fonction construisant la chaîne de caractères pour les critères situation familiale et CSP
-      listeCriteresProspection <- function(e) {
-        if(length(e)!=0) {
-          e.chaine <- ""
-          if(length(e)==1) {
-            e.chaine <- HTML(paste(e.chaine, tags$strong(e)))
+        # Affichage du nombre de clients atteints par la prospection
+        output$prospectionObjectif <- renderUI({
+          # si la prospection n'a pas encore été lancé, on prévient le commerçant de la lancer
+          if(!exists("df.prospection")) {
+            tagList(tags$h1("0"), tags$h3("Clients potentiels"),
+                    tags$h3("Penser à visualiser la répartition de la fidélité des clients puis à lancer la prospection !")
+            )
           } else {
-            for(i in 1:(length(e)-1)) {
-              e.chaine <- HTML(paste(e.chaine, tags$strong(e[i]), ", ", sep = ""))  
-            }
-            e.chaine <- HTML(paste(e.chaine, tags$strong(e[length(e)])))
-          }
-        }
-      }
-      
-      output$champActionProspectionTitre <- renderUI ({
-        tagList(tags$h2("Périmètre d'action prospection"))
-      })
-      
-      # Algorithme de prospection
-      prospection <- reactive({
-        print("juste avant le sendCustomMessage")
-        # Trigger pour l'affichage du panneau "Calcul en cours..."
-        session$sendCustomMessage(type='jsCode', list(value = "$('html').attr('class','shiny-busy');"))
-        
-        # Est directement dépendant de l'action sur la bouton input$btnChampAction
-        # Lorsque btnChampAction est appuyé, toutes les fonctions ci-dessous sont exécutées
-        input$actionButtonLancerProspection
-        print("action sur le bouton btnChampAction")
-        
-        # On isole la parallélisation du calcul de prospection afin qu'il ne soit exécuté uniquement lorsque le client le désire réellement 
-        isolate({
-          print("enter isolate")
-          
-          if(nrow(df.p)==0) {
-            return()
-          } else {
-            # On subset la table de prospection pour ne garder les choix du commerçant
-            df.prospection <- unique(df.p %>%
-                                       group_by(client) %>%
-                                       summarise(panier=mean(montant),
-                                                 date=max(date),
-                                                 age=age,
-                                                 sexe=sexe,
-                                                 csp=csp,
-                                                 situation=situation,
-                                                 villeclient=villeclient,
-                                                 libelle=libelle,
-                                                 reseau=reseau,
-                                                 paiement=paiement,
-                                                 retrait=retrait,
-                                                 typecompte=typecompte,
-                                                 Glat=Glat,
-                                                 Glon=Glon,
-                                                 fid=fid))
-            
-            # Les filtres ne s'appliquent qu'aux prospects
-            # Si le commerçant décide de prospecter les clients fidèles et/ou infidèles alors ils ne sont pas comptabilisés
-            # Cas où il veut prospecter que les clients infidèles : alors les clients fidèles sont soumis aux mêmes filtres que les prospects
-            if(length(input$checkBoxFideliteProspection)!=0) {
-              df.prospection.fideles <- cbind(subset(df.prospection, fid %in% input$checkBoxFideliteProspection), dist = c(1))
-              df.prospection <- subset(df.prospection, !(fid %in% input$checkBoxFideliteProspection))
-            }
-            
-            print(paste(nrow(df.prospection), "après unique et de class", class(df.prospection)))
-            # On subset la data table contenant les clients à prospecter en fonction des critères du commerçant
-            # D'abord on subset par sexe et âge
-            df.prospection <- subset(df.prospection, sexe %in% input$checkBoxProspectionSexe
-                                     & age %between% input$selectInputProspectionAge)
-            
-            print(paste(nrow(df.prospection), "après subset 1 et de classe", class(df.prospection)))
-            
-            print(input$checkBoxProspectionSexe)
-            print(input$selectInputProspectionAge)
-            print(input$selectInputSituationProspection)
-            print(input$selectInputCSPProspection)
-            print(input$checkBoxFideliteProspection)
-            
-            # La condition if empêche le subset dans le cas où le critère n'a pas été précisé
-            # Puis par situation
-            if(length(input$selectInputSituationProspection)!=0) {
-              df.prospection <- subset(df.prospection, situation %in% input$selectInputSituationProspection)
-            }
-            print(paste(nrow(df.prospection), "après subset 2 et de classe", class(df.prospection)))
-            
-            # Enfin par csp
-            if(length(input$selectInputCSPProspection)!=0) {
-              df.prospection <- subset(df.prospection, csp %in% input$selectInputCSPProspection)
-            }
-            
-            print(paste(nrow(df.prospection), "après subset 3 et de classe", class(df.prospection)))
-            
-            # Pour mémo :
-            # fid = 1 : clients fidèles
-            # fid = 2 : clients infidèles
-            # fid = 0 : prospects
-            # Le vecteur input$checkBoxFideliteProspection contient les valeurs 1 et 2 selon le choix du commerçant
-            
-            # DEVIENT INUTILE CAR ON L'A TRAITE PLUS HAUT
-            #             if(length(input$checkBoxFideliteProspection)!=0) {
-            #               df.prospection <- subset(df.prospection, fid %in% input$checkBoxFideliteProspection | fid == 0)
-            #               # Si aucune case n'est cochée alors on ne garde que les prospects
-            #             } else {df.prospection <- subset(df.prospection, fid == 0)}
-            
-            print(paste(nrow(df.prospection), "après subset 4 et de classe", class(df.prospection)))
-            
-            # Data table finale
-            # dist = 0 : n'est pas présent dans le champ d'action
-            # dist = 1 : est présent dans le champ d'action
-            
-            # Condition if : le commerçant souhaite t-il prospecter nécessairement les clients fidèles et/ou infidèles ?
-            df.prospection <<- if(length(input$checkBoxFideliteProspection)!=0) {
-              print("bip 1")
-              # Si oui, la prospection porte t-elle EXCLUSIVEMENT sur ces clients ?
-              if(nrow(df.prospection)!=0) {
-                print("bip 2")
-                # Si df.prospection est non nul, alors les critères sont tels que la prospection est porte aussi sur des cliens de fid = 0
-                rbind.data.frame(
-                  # Résidu de prospection hors choix du commerçant sur les clients fidèles et infidèles
-                  distanceCompute(df.prospection),
-                  # Table contenant le choix du commerçant sur les clients fidèles et infidèles
-                  df.prospection.fideles
-                )
-              } else {
-                print("bip 3")
-                # Les critères sont tels qu'il n'y a pas de prospects
-                # On retourne seulement la table des fidèles/infidèles car nous savons qu'elle existe
-                df.prospection.fideles
-              }
-            } else {
-              print("bip 4")
-              # Si le commerçant souhaite prospecter tout le monde indifférement, clients fidèles/infidèles et prospects
-              if(nrow(df.prospection)!=0) {
-                print("bip 5")
-                # Si les critères font qu'il y a des prospects, alors on l'envoi dans distanceCompute
-                distanceCompute(df.prospection)
-              }
-            }
-            print("bip 6")
+            print("bip 7")
+            # Affichage des résultats de la prospection
+            print(paste(length(df.prospection$dist==1), "longueuer de dist"))
+            tagList(tags$h1(nrow(df.prospection[df.prospection$dist==1,])), tags$h3("Clients potentiels"),
+                    tags$h1(ifelse(length(df.prospection$dist)!=0,paste(round(mean(df.prospection$panier),1), "€"),"0 €")), tags$h3("Panier moyen client"),
+                    tags$h1(paste(nrow(df.prospection[df.prospection$dist==1,])*floor(mean(df.prospection$panier)), "€")), tags$h3("Bénéfices potentiels*")
+            )
           }
         })
-      })
-      
-      distanceCompute <- function(df) {
-        cbind(df,
-              # Variable catégorique donnant la présence ou non du client dans le champ d'action du commerçant                        
-              dist = foreach(line = iter(df, by = 'row'), .combine = 'c', .packages = c('parallel','doParallel','foreach')) %do% {
-                val <- acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon
-                if(!is.na(val)) {
-                  ifelse(val <= input$numericInputChampAction, 1, 0)
+        
+        # Affichage du nombre de prospects sur la période de visualisation
+        output$prospectionRecapitulatifClientele <- renderUI({
+          if(exists("fidelite")) {
+            fidelite <- fidelite.up()
+            tagList(div(tags$h2(fidelite[fidelite$type=="Prospects",1]), tags$h5("Prospects")),
+                    div(tags$h2(ifelse(fidelite[fidelite$type=="Fidèles",1]>0,fidelite[fidelite$type=="Fidèles",1],0)), tags$h5("Clients fidèles")),
+                    div(tags$h2(ifelse(fidelite[fidelite$type=="Infidèles",1]>0,fidelite[fidelite$type=="Infidèles",1],0)), tags$h5("Clients infidèles"))
+            )
+          }
+        })
+        
+        output$criteresProspectionDesc <- renderUI ({
+          # Récupération des variables de critères
+          sexe <- input$checkBoxProspectionSexe
+          age <- input$selectInputProspectionAge
+          situation <- input$selectInputSituationProspection
+          csp <- input$selectInputCSPProspection
+          
+          # Construction de la chaîne de caractère pour la situation
+          situation.chaine <- listeCriteresProspection(situation)
+          
+          # Construction de la chaîne de caractère pour la CSP
+          csp.chaine <- listeCriteresProspection(csp)
+          
+          tagList(
+            tags$h5("Ci-dessous le récapitulatif des critères des clients sur lequel porte la prospection :"),
+            tags$ul(
+              tags$li(HTML(paste("de sexe", ifelse(length(sexe)==2, paste(tags$strong("masculin"), "et", tags$strong("féminin")), paste(tags$strong(sexe)))))),
+              tags$li(HTML(paste("âgés entre", tags$strong(age[1]), "et", tags$strong(age[2]), "ans"))),
+              tags$li(HTML(paste("de situation familiale", ifelse(length(situation)!=0, situation.chaine, paste(tags$strong("quelconque")))))),
+              tags$li(HTML(paste("de CSP", ifelse(length(csp)!=0, csp.chaine, paste(tags$strong("quelconque"))))))
+            ),
+            HTML(paste("Par défaut, les", strong("clients fidèles"), "et les", strong("clients infidèles"), "sont prospectés. Cela reste paramétrable."))
+          )
+        })
+        
+        # Fonction construisant la chaîne de caractères pour les critères situation familiale et CSP
+        listeCriteresProspection <- function(e) {
+          if(length(e)!=0) {
+            e.chaine <- ""
+            if(length(e)==1) {
+              e.chaine <- HTML(paste(e.chaine, tags$strong(e)))
+            } else {
+              for(i in 1:(length(e)-1)) {
+                e.chaine <- HTML(paste(e.chaine, tags$strong(e[i]), ", ", sep = ""))  
+              }
+              e.chaine <- HTML(paste(e.chaine, tags$strong(e[length(e)])))
+            }
+          }
+        }
+        
+        output$champActionProspectionTitre <- renderUI ({
+          tagList(tags$h2("Périmètre d'action prospection"))
+        })
+        
+        # Observateur pour la prospection. Empêche que l'appui sur le bouton déclenchant la prospectipon exécutes à nouveau tout le code
+        #       observe({
+        
+        # Algorithme de prospection
+        prospection <- reactive({
+          
+          # browser()()
+          
+          print("juste avant le sendCustomMessage")
+          # Trigger pour l'affichage du panneau "Calcul en cours..."
+          session$sendCustomMessage(type='jsCode', list(value = "$('html').attr('class','shiny-busy');"))
+          
+          # Est directement dépendant de l'action sur la bouton input$btnChampAction
+          # Lorsque btnChampAction est appuyé, toutes les fonctions ci-dessous sont exécutées
+          input$actionButtonLancerProspection
+          print("action sur le bouton btnChampAction")
+          
+          # On isole la parallélisation du calcul de prospection afin qu'il ne soit exécuté uniquement lorsque le client le désire réellement 
+          print("enter isolate")
+          
+          isolate({
+            
+            if(nrow(df.p)==0) {
+              return()
+            } else {
+              # On subset la table de prospection pour ne garder les choix du commerçant
+              df.prospection <- unique(df.p %>%
+                                         group_by(client) %>%
+                                         summarise(panier=mean(montant),
+                                                   date=max(date),
+                                                   age=age,
+                                                   sexe=sexe,
+                                                   csp=csp,
+                                                   situation=situation,
+                                                   villeclient=villeclient,
+                                                   libelle=libelle,
+                                                   reseau=reseau,
+                                                   paiement=paiement,
+                                                   retrait=retrait,
+                                                   typecompte=typecompte,
+                                                   Glat=Glat,
+                                                   Glon=Glon,
+                                                   fid=fid))
+              
+              # Les filtres ne s'appliquent qu'aux prospects
+              # Si le commerçant décide de prospecter les clients fidèles et/ou infidèles alors ils ne sont pas comptabilisés
+              # Cas où il veut prospecter que les clients infidèles : alors les clients fidèles sont soumis aux mêmes filtres que les prospects
+              if(length(input$checkBoxFideliteProspection)!=0) {
+                df.prospection.fideles <- cbind(subset(df.prospection, fid %in% input$checkBoxFideliteProspection), dist = c(1))
+                df.prospection <- subset(df.prospection, !(fid %in% input$checkBoxFideliteProspection))
+              }
+              
+              print(paste(nrow(df.prospection), "après unique et de class", class(df.prospection)))
+              # On subset la data table contenant les clients à prospecter en fonction des critères du commerçant
+              # D'abord on subset par sexe et âge
+              df.prospection <- subset(df.prospection, sexe %in% input$checkBoxProspectionSexe
+                                       & age %between% input$selectInputProspectionAge)
+              
+              print(paste(nrow(df.prospection), "après subset 1 et de classe", class(df.prospection)))
+              
+              print(input$checkBoxProspectionSexe)
+              print(input$selectInputProspectionAge)
+              print(input$selectInputSituationProspection)
+              print(input$selectInputCSPProspection)
+              print(input$checkBoxFideliteProspection)
+              
+              # La condition if empêche le subset dans le cas où le critère n'a pas été précisé
+              # Puis par situation
+              if(length(input$selectInputSituationProspection)!=0) {
+                df.prospection <- subset(df.prospection, situation %in% input$selectInputSituationProspection)
+              }
+              print(paste(nrow(df.prospection), "après subset 2 et de classe", class(df.prospection)))
+              
+              # Enfin par csp
+              if(length(input$selectInputCSPProspection)!=0) {
+                df.prospection <- subset(df.prospection, csp %in% input$selectInputCSPProspection)
+              }
+              
+              print(paste(nrow(df.prospection), "après subset 3 et de classe", class(df.prospection)))
+              
+              # Pour mémo :
+              # fid = 1 : clients fidèles
+              # fid = 2 : clients infidèles
+              # fid = 0 : prospects
+              # Le vecteur input$checkBoxFideliteProspection contient les valeurs 1 et 2 selon le choix du commerçant
+              
+              # DEVIENT INUTILE CAR ON L'A TRAITE PLUS HAUT
+              #             if(length(input$checkBoxFideliteProspection)!=0) {
+              #               df.prospection <- subset(df.prospection, fid %in% input$checkBoxFideliteProspection | fid == 0)
+              #               # Si aucune case n'est cochée alors on ne garde que les prospects
+              #             } else {df.prospection <- subset(df.prospection, fid == 0)}
+              
+              print(paste(nrow(df.prospection), "après subset 4 et de classe", class(df.prospection)))
+              
+              # Data table finale
+              # dist = 0 : n'est pas présent dans le champ d'action
+              # dist = 1 : est présent dans le champ d'action
+              
+              # Condition if : le commerçant souhaite t-il prospecter nécessairement les clients fidèles et/ou infidèles ?
+              df.prospection <<- if(length(input$checkBoxFideliteProspection)!=0) {
+                print("bip 1")
+                # Si oui, la prospection porte t-elle EXCLUSIVEMENT sur ces clients ?
+                if(nrow(df.prospection)!=0) {
+                  print("bip 2")
+                  # Si df.prospection est non nul, alors les critères sont tels que la prospection est porte aussi sur des cliens de fid = 0
+                  rbind.data.frame(
+                    # Résidu de prospection hors choix du commerçant sur les clients fidèles et infidèles
+                    distanceCompute(df.prospection),
+                    # Table contenant le choix du commerçant sur les clients fidèles et infidèles
+                    df.prospection.fideles
+                  )
                 } else {
-                  print(line)
-                  return(0)}
-                # if(acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon <= 7) {
-                # return(1)
-                # } else {return(0)}
-              })
-      }
-      
-      # Listener sur l'algorithme de prospection ci-desssus
-      prospection()
-      
+                  print("bip 3")
+                  # Les critères sont tels qu'il n'y a pas de prospects
+                  # On retourne seulement la table des fidèles/infidèles car nous savons qu'elle existe
+                  df.prospection.fideles
+                }
+              } else {
+                print("bip 4")
+                # Si le commerçant souhaite prospecter tout le monde indifférement, clients fidèles/infidèles et prospects
+                if(nrow(df.prospection)!=0) {
+                  print("bip 5")
+                  # Si les critères font qu'il y a des prospects, alors on l'envoi dans distanceCompute
+                  distanceCompute(df.prospection)
+                }
+              }
+              print("bip 6")
+            }
+            # Fin de l'isolement : supprime la dépendance de input$numericInputChampAction
+          })
+        })
+        
+        distanceCompute <- function(df) {
+          cbind(df,
+                # Variable catégorique donnant la présence ou non du client dans le champ d'action du commerçant                        
+                dist = foreach(line = iter(df, by = 'row'), .combine = 'c', .packages = c('parallel','doParallel','foreach')) %do% {
+                  val <- acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon
+                  if(!is.na(val)) {
+                    ifelse(val <= input$numericInputChampAction, 1, 0)
+                  } else {
+                    print(line)
+                    return(0)}
+                  # if(acos(sin(latC)*sin(line$Glat*pi/180)+cos(latC)*cos(line$Glat*pi/180)*cos(line$Glon*pi/180-lonC)) * rayon <= 7) {
+                  # return(1)
+                  # } else {return(0)}
+                })
+        }
+        
+        # Listener sur l'algorithme de prospection ci-desssus
+        prospection()
+        
+      })  
       ###################################################################################################################
       #                                          FIN MODULE DE PROSPECTION                                              #
       ###################################################################################################################
