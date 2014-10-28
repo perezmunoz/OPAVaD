@@ -5,7 +5,7 @@
 # Carte centrée sur le commerçant connecté à la connexion
 output$carte <- renderUI({
   leafletMap(
-    "map", "100%", "40%",
+    "map", "100%", 400,
     initialTileLayer = "//{s}.tiles.mapbox.com/v3/jcheng.map-5ebohr46/{z}/{x}/{y}.png",
     initialTileLayerAttribution = HTML('Maps by <a href="http://www.mapbox.com/">Mapbox</a>'),
     options = list(
@@ -39,7 +39,7 @@ output$comparerByCritere <- renderUI({
 
 # Panneau de comparaison entre commerçants par date
 output$comparerByPeriode <- renderUI({
-  dateRangeInput("range", label = "P\u00E9riode de visualisation des donn\u00E9es", start = "2013-05-01", end = "2013-05-08", 
+  dateRangeInput("range", label = "P\u00E9riode de visualisation des donn\u00E9es", start = "2013-05-01", end = "2013-05-08", min = "2012-09-28", max = "2013-10-02",
                  format = "yyyy-mm-dd", startview = "month", weekstart = 0, language = "fr", separator = " \u00E0 ")
 })
 

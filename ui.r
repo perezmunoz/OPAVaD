@@ -44,16 +44,31 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                               uiOutput("panneauCarte")
                             ),
                             fluidRow(id = "data-viz",
-                                     column(2,
-                                            offset = 2,
-                                            uiOutput("comparerByCritere"),
-                                            uiOutput("comparerByPeriode"),
-                                            uiOutput("separator"),
-                                            uiOutput("detailsComparaison")
+                                     # Outils de comparaison et explication de l'application
+                                     conditionalPanel(condition = "$($('#graphique-tab').children()[0]).hasClass('active')
+                                                                  || $($('#graphique-tab').children()[1]).hasClass('active')",
+                                                      column(2,
+                                                             offset = 2,
+                                                             uiOutput("comparerByCritere"),
+                                                             uiOutput("comparerByPeriode"),
+                                                             uiOutput("separator"),
+                                                             uiOutput("detailsComparaison")
+                                                      )
+                                     ),
+                                     conditionalPanel(condition = "$($('#graphique-tab').children()[2]).hasClass('active')",
+                                                      column(2,
+                                                             offset = 2,
+                                                             # Fenêtre 'modal' pour le panier des clients dans 'Fidélité de la clientèle'
+                                                             uiOutput("modalUIPanier"),
+                                                             # Ensemble des inputs encapsulés pour une réinitialisation ultérieure
+                                                             uiOutput('resetable_input'),
+                                                             # Composants pour le réglage de la visualisation du graphique
+                                                             uiOutput('composantsReglagePanier')
+                                                      )
                                      ),
                                      column(6,
                                             tabsetPanel(id = "graphique-tab",
-                                                        tabPanel("Mon commerce",
+                                                        tabPanel("Mon commerce", id = "moncommerce",
                                                                  fluidRow(id = "idcaTitre",
                                                                           column(12,
                                                                                  # Titre du graphique 'Répartition du chiffre d'affaire'
@@ -62,8 +77,15 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                                                  ),
                                                                  fluidRow(
                                                                    column(12,
+                                                                          # Message d'erreur en cas de graphique nul
+                                                                          uiOutput("errorMessageCA")
+                                                                   )
+                                                                 ),
+                                                                 fluidRow(
+                                                                   column(12,
                                                                           # Graphique 'Distribution du chiffre d'affaire selon la période de la journée'
-                                                                          plotOutput("graphiqueCA"))
+                                                                          plotOutput("graphiqueCA")
+                                                                   )
                                                                  ),
                                                                  fluidRow(
                                                                    column(12,
@@ -140,41 +162,20 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                                                         ),
                                                         tabPanel("Panier de la clientèle",
                                                                  fluidRow(
-                                                                   column(9,
+                                                                   column(12,
                                                                           fluidRow(id = "idpanierTitre",
+                                                                                   h4("Distribution journalière du panier des clients selon des critères"),
                                                                                    # Titre du graphique 'Distribution du panier journalier'
-                                                                                   uiOutput("panierTitre")
+                                                                                   uiOutput("panierSousTitre"),
+                                                                                   uiOutput("errorPanierTitre"),
+                                                                                   dataTableOutput("tableTransctionsPanierSansGraphique")
                                                                           ),
                                                                           fluidRow(
                                                                             # Graphique 'Distribution du panier journalier'
-                                                                            ggvisOutput("graphiquePanier")
+                                                                            #                                                                             ggvisOutput("graphiquePanier")
+                                                                            plotOutput("graphiquePanier")
                                                                           )
-                                                                   ),
-                                                                   column(3,
-                                                                          # Fenêtre 'modal' pour le panier des clients dans 'Fidélité de la clientèle'
-                                                                          uiOutput("modalUIPanier"),
-                                                                          
-                                                                          # Ensemble des inputs encapsulés pour une réinitialisation ultérieure
-                                                                          uiOutput('resetable_input'),
-                                                                          
-                                                                          # Réglage de la précision de la distribution
-                                                                          sliderInput(inputId = "bin",
-                                                                                      label = "Ajustement de la précision",
-                                                                                      min = .1, max = 2, value = 1, step = .1),
-                                                                          
-                                                                          hr(),
-                                                                          
-                                                                          # Bouton affichant la table des transactions
-                                                                          bsButton("btnModalPanier", "Voir données", style = "primary"),
-                                                                          
-                                                                          br(),
-                                                                          
-                                                                          # Bouton servan à réinitialiser les variables 'input'
-                                                                          actionButton("reset_input", "Réinitialiser les critères")
                                                                    )
-                                                                 ),
-                                                                 fluidRow(
-                                                                   uiOutput('nb')
                                                                  )
                                                         )
                                             )
@@ -298,7 +299,5 @@ shinyUI(navbarPage("OPAVaD", id = "opavad",
                               )
                             )
                             
-                   ),
-                   # TO DO
-                   tabPanel("A propos")
+                   )
 ))
