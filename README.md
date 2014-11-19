@@ -13,7 +13,7 @@ The specifications are as follows :
 * profiling of its customers
 * prospecting module for determining customers potentially interested in promotional offers
 
-Technically, the prospecting tool is mainly developped in R, using the framework `shiny`. For further information about the Shiny Project developped by RStudio employees, click [here](https://github.com/rstudio/shiny).
+Technically, the prospecting tool is mainly developped in R, using the framework [Shiny](https://github.com/rstudio/shiny).
 
 ====
 #### New version : OPAVaD-Grid
